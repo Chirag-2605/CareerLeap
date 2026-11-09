@@ -22,6 +22,21 @@ V2 parser output includes:
 
 The parser is heuristic. It does not currently perform OCR, guarantee PDF reading order for complex layouts, or infer a candidate's qualifications.
 
+
+### Analysis V3 milestone (new, validation pending)
+The V3 analysis is exposed separately at POST /api/v3/analyze. V1 and V2 endpoints and scoring modules remain unchanged.
+
+V3 adds:
+- Explicit required / preferred / informational job-skill classification; neutral mentions are not reported as missing.
+- Conservative, explicit skill aliases rather than broad technology-family assumptions.
+- Separate listed-versus-demonstrated skill match states, with resume evidence IDs.
+- Requirement-level match details and explainable skill gaps.
+- Responsibility-to-experience/project bullet comparison using transparent lexical overlap (not embeddings).
+- Role-family and seniority signals only when both sides can be identified; unknown signals are treated neutrally.
+- A V3 quality response with evidence coverage counts for recognized, demonstrated, and listed-only skills.
+
+V3 remains a deterministic heuristic. It does not use embeddings or an LLM, and responsibility overlap is a preliminary lexical signal rather than semantic understanding. Run the complete backend test suite before relying on V3 results.
+
 ## Architecture
 
 - mobile/: Expo + React Native app
