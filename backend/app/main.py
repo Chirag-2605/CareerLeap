@@ -9,6 +9,7 @@ from .parser import parse_resume
 from .parser_v2 import parse_resume_v2
 from .analysis_v2 import analyze_quality_v2, analyze_job_match_v2
 from .analysis_v3 import analyze_quality_v3, analyze_job_match_v3
+from .analysis_v4 import analyze_quality_v4, analyze_job_match_v4
 from .scoring import analyze_quality, analyze_job_match
 
 app = FastAPI(
@@ -148,6 +149,45 @@ async def analyze_v3(
         quality = analyze_quality_v3(parsed)
         job_match = (
             analyze_job_match_v3(parsed, job_description)
+            if job_description and job_description.strip()
+            else None
+        )
+        return {
+            "quality": quality,
+            "job_match": job_match,
+            "resume": parsed,
+            "privacy": {
+                "stored": False,
+                "message": "This analysis is processed in memory and is not saved.",
+            },
+        }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    finally:
+        await file.close()
+
+
+@app.post("/api/v4/analyze")
+async def analyze_v4(
+    file: UploadFile = File(...),
+    job_description: Optional[str] = Form(default=None),
+    user: dict = Depends(require_user),
+):
+    """Run the fresh content-first V4 analysis; V1-V3 remain available for comparison."""
+    filename = file.filename or "resume"
+    if not filename.lower().endswith((".pdf", ".docx")):
+        raise HTTPException(status_code=415, detail="Please upload a PDF or DOCX file.")
+    content = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
+    if len(content) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="File is too large. Maximum size is {0} MB.".format(settings.max_upload_mb),
+        )
+    try:
+        parsed = parse_resume_v2(filename, content)
+        quality = analyze_quality_v4(parsed)
+        job_match = (
+            analyze_job_match_v4(parsed, job_description)
             if job_description and job_description.strip()
             else None
         )
