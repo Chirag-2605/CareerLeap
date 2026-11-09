@@ -100,7 +100,7 @@ def test_joins_wrapped_bullet_lines_and_preserves_all_evidence_ids():
         "Experience",
         "• Built a dynamic UI using React and TypeScript, enabling 10+ datasets",
         "without any frontend code changes.",
-        "• Integrated Mongo-",
+        "• Integrated Mon-",
         "goDB for persistence.",
     ])
 
