@@ -162,11 +162,10 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
     components.append(_score_component("impact", impact_score, findings))
 
     skills = resume.get("skills", [])
-    skill_evidence = {skill.get("canonical_name"): skill.get("evidence_ids", []) for skill in skills}
-    demonstrated_names: Set[str] = set()
-    for name, evidence_ids in skill_evidence.items():
-        if any(eid in {eid for item in achievement_items for eid in _evidence(item)} for eid in evidence_ids):
-            demonstrated_names.add(str(name))
+    demonstrated_names: Set[str] = {
+        str(skill.get("canonical_name"))
+        for skill in skills if skill.get("demonstrated_evidence_ids")
+    }
     skill_score = min(15, min(8, len(skills) * 2) + min(7, len(demonstrated_names)))
     if skills and not demonstrated_names:
         findings.append(_finding("skills_not_demonstrated", "Listed skills lack detected achievement evidence",
@@ -213,6 +212,26 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
         completeness_score -= 3
     components.append(_score_component("completeness", completeness_score, findings))
 
+    # Every deduction gets at least a component-level explanation.
+    for component in components:
+        if component["deducted"] and not any(
+            item["code"].startswith(component["key"] + "_") or
+            item["code"] == "component_deduction_" + component["key"]
+            for item in findings
+        ):
+            findings.append(_finding(
+                "component_deduction_" + component["key"],
+                component["label"] + " score deduction", "low",
+                "Review the extracted content for this dimension; the heuristic could not identify a more specific issue.",
+                detail="{0} of {1} points deducted by the current heuristic.".format(
+                    component["deducted"], component["possible"]
+                ),
+            ))
+    valid_evidence = set(item.get("id") for item in resume.get("evidence", []))
+    for finding in findings:
+        finding["evidence_ids"] = list(dict.fromkeys(
+            eid for eid in finding.get("evidence_ids", []) if eid in valid_evidence
+        ))
     score = sum(component["earned"] for component in components)
     findings.sort(key=lambda item: ({"high": 0, "medium": 1, "low": 2}.get(item["severity"], 3),
                                     -len(item["evidence_ids"])))
@@ -223,7 +242,9 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
         "findings": findings,
         "strengths": [
             {"title": "Detected " + str(len(skills)) + " recognized skills",
-             "evidence_ids": [eid for skill in skills for eid in skill.get("evidence_ids", [])][:12]}
+             "evidence_ids": list(dict.fromkeys(
+                 eid for skill in skills for eid in skill.get("evidence_ids", [])
+             ))[:12]}
         ] if skills else [],
         "summary": (
             "Strong resume structure; focus on tailoring and strengthening evidence."
@@ -253,6 +274,7 @@ def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[s
     resume_skills = _skill_aliases(resume)
     required: Set[str] = set()
     preferred: Set[str] = set()
+    not_assessed: Set[str] = set()
     sentences = re.split(r"[\n.!?;]+", job_description.lower())
     for canonical, aliases in SKILL_GROUPS.items():
         pattern = re.compile(
@@ -265,13 +287,14 @@ def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[s
         for sentence in matching_sentences:
             if any(cue in sentence for cue in PREFERRED_CUES):
                 preferred.add(canonical)
-            else:
-                # Neutral mentions are treated as requirements only when explicitly
-                # framed as required; otherwise keep them in the assessed set as
-                # neutral requirements for this initial baseline.
+            elif any(cue in sentence for cue in REQUIRED_CUES):
                 required.add(canonical)
+            else:
+                not_assessed.add(canonical)
 
     detected = set(resume_skills)
+    not_assessed.difference_update(required)
+    not_assessed.difference_update(preferred)
     matched_required = sorted(required & detected)
     missing_required = sorted(required - detected)
     matched_preferred = sorted(preferred & detected)
@@ -321,7 +344,7 @@ def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[s
         "missing_required_skills": missing_required,
         "matched_preferred_skills": matched_preferred,
         "missing_preferred_skills": missing_preferred,
-        "not_assessed": [],
+        "not_assessed": sorted(not_assessed),
         "findings": findings,
         "summary": "Detected {0} of {1} required catalog skills.".format(len(matched_required), len(required)),
         "disclaimer": "This baseline checks explicit catalog terms; it does not infer semantic equivalence or predict an employer's ATS ranking.",
