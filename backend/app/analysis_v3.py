@@ -394,6 +394,14 @@ def analyze_job_match_v3(resume: Dict[str, Any], job_description: str) -> Dict[s
             detail=" ".join(extraction_notes),
         ))
 
+    assessed_dimensions = sum([
+        1 if required_total + preferred_total > 0 else 0,
+        1 if responsibility_total > 0 else 0,
+        1 if candidate_role and target_role else 0,
+        1 if candidate_level and target_level else 0,
+    ])
+    assessment_confidence = "high" if assessed_dimensions >= 3 else "medium" if assessed_dimensions == 2 else "low"
+
     breakdown = [
         {"key": "required_skills", "label": "Required skill coverage", "earned": required_points, "possible": 45, "deducted": 45-required_points},
         {"key": "preferred_skills", "label": "Preferred skill coverage", "earned": preferred_points, "possible": 10, "deducted": 10-preferred_points},
@@ -404,6 +412,14 @@ def analyze_job_match_v3(resume: Dict[str, Any], job_description: str) -> Dict[s
     return {
         "score": score,
         "version": MATCH_VERSION,
+        "assessment_confidence": assessment_confidence,
+        "assessment_coverage": {
+            "assessed_dimensions": assessed_dimensions,
+            "available_dimensions": 4,
+            "catalog_requirements": required_total + preferred_total,
+            "informational_skills": len(classified["not_assessed"]),
+            "responsibility_statements": responsibility_total,
+        },
         "breakdown": breakdown,
         "requirements": requirements,
         "matched_required_skills": matched_required,
