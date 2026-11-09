@@ -7,6 +7,7 @@ from .auth import require_user
 from .config import settings
 from .parser import parse_resume
 from .parser_v2 import parse_resume_v2
+from .analysis_v2 import analyze_quality_v2, analyze_job_match_v2
 from .scoring import analyze_quality, analyze_job_match
 
 app = FastAPI(
