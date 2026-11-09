@@ -26,11 +26,22 @@ ACTION_VERBS = {
     "configured", "secured", " mentored".strip(),
 }
 VAGUE_STARTS = {"worked", "helped", "responsible", "involved", "participated", "assisted"}
+# Require a quantity plus a unit or concrete scale noun. The lookahead
+# after '%' deliberately avoids the old word-boundary bug (95% ends in a
+# non-word character). This also recognizes phrases such as "30+ Athena SQL queries".
 METRIC_RE = re.compile(
-    r"(?:\b\d+(?:\.\d+)?\s*(?:%|percent|x|ms|秒|k|m|million|billion)\b|"
-    r"\b\d+\+\s+(?:users|customers|requests|records|services|teams|members|"
-    r"datasets|projects|employees|participants|classes)\b|"
-    r"\b(?:reduced|increased|improved|cut|saved|boosted)\b.{0,45}\bby\s+\d+)",
+    r"(?:"
+    r"(?<![a-z0-9])\d+(?:\.\d+)?\s*(?:%|percent\b|x\b|ms\b|"
+    r"seconds?\b|minutes?\b|hours?\b|days?\b|k\b|m\b|million\b|billion\b)"
+    r"(?![a-z0-9])"
+    r"|(?<![a-z0-9])\d+(?:\.\d+)?\+?\s+"
+    r"(?:[a-z][a-z0-9+#.-]*\s+){0,3}"
+    r"(?:users?|customers?|requests?|records?|services?|teams?|members?|"
+    r"datasets?|projects?|employees?|participants?|classes?|queries?|"
+    r"transactions?|workflows?|systems?|APIs?|students?|events?)(?![a-z0-9])"
+    r"|\b(?:reduced|increased|improved|cut|saved|boosted|raised|lowered)\b"
+    r".{0,60}\bby\s+\d+(?:\.\d+)?\s*(?:%|percent|x|ms)?(?![a-z0-9])"
+    r")",
     re.I,
 )
 STOP_WORDS = {
@@ -220,6 +231,19 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
     # Impact: count measurable outcome evidence, scope indicators, and causal
     # statements. A number alone is not automatically treated as impact.
     metric_bullets = [item for item in all_bullets if METRIC_RE.search(item["text"])]
+    incomplete_metric_bullets = [
+        item for item in all_bullets
+        if re.search(r"\\bby\\s+\\d+(?:\\.\\d+)?\\s*$", item["text"], re.I)
+    ]
+    if incomplete_metric_bullets:
+        findings.append(_finding(
+            "incomplete_numeric_claim",
+            "One or more achievement bullets may have a truncated numeric result",
+            "medium",
+            "Check the original resume and restore the missing unit or outcome only if it is accurate.",
+            [eid for item in incomplete_metric_bullets for eid in item["evidence_ids"]],
+            "{0} bullet(s) end with a number but no visible unit.".format(len(incomplete_metric_bullets)),
+        ))
     outcome_bullets = [
         item for item in all_bullets
         if re.search(r"\b(?:reduced|increased|improved|accelerated|saved|cut|boosted|"
@@ -248,7 +272,11 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
     listed_only = [item for item in skills if item.get("listed_evidence_ids") and not item.get("demonstrated_evidence_ids")]
     # Credit is tied to skills shown in work/projects, with a smaller contribution
     # for a skills section. Repeated aliases do not multiply the count.
-    skill_score = min(10, len(demonstrated) * 2) + min(5, len(listed_only))
+    # Diminishing returns prevent a long skills inventory from maxing this
+    # component. Demonstrated use carries more weight than list-only mentions.
+    skill_score = min(12, int(round(len(demonstrated) * 0.6))) + min(
+        3, int(round(len(listed_only) * 0.25))
+    )
     if not skills:
         findings.append(_finding(
             "skills_none_detected", "No recognized skills were extracted", "medium",
@@ -269,7 +297,7 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
     education_score = 0
     if education_items:
         education_score += 2
-        if re.search(r"\b(?:bachelor|master|ph\.?d|b\.?tech|m\.?tech|degree|diploma)\b", education_text, re.I):
+        if re.search(r"\b(?:bachelors?|bachelor['’]s|masters?|master['’]s|ph\.?d|b\.?tech|m\.?tech|degree|diploma)\b", education_text, re.I):
             education_score += 3
         if re.search(r"\b(?:university|college|institute|school)\b", education_text, re.I):
             education_score += 2
@@ -346,6 +374,7 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
             "experience_bullets": len(experience),
             "project_bullets": len(project_bullets),
             "measurable_bullets": len(metric_bullets),
+            "incomplete_numeric_claims": len(incomplete_metric_bullets),
             "demonstrated_skills": len(demonstrated),
             "listed_only_skills": len(listed_only),
             "extraction_warnings": list(warnings),
@@ -600,7 +629,13 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     ]
     active_weight = sum(weight for _, value, weight in dimensions if value is not None)
     earned = sum(value for _, value, _ in dimensions if value is not None)
-    score = int(round(100.0 * earned / active_weight)) if active_weight else 0
+    provisional_score = int(round(100.0 * earned / active_weight)) if active_weight else None
+    # A role-title/seniority signal alone is too thin to publish as a match
+    # score. Require at least 25 of 90 weighted points to be assessed.
+    minimum_assessed_weight = 25
+    score_is_assessable = active_weight >= minimum_assessed_weight
+    score = provisional_score if score_is_assessable else None
+    score_status = "assessed" if score_is_assessable else "insufficient_data"
     breakdown = []
     for key, value, weight in dimensions:
         assessed = value is not None
@@ -614,6 +649,17 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         })
 
     findings = []
+    if not score_is_assessable:
+        findings.append(_finding(
+            "job_match_insufficient_coverage",
+            "Not enough job-description evidence to calculate a reliable match score",
+            "medium",
+            "Provide a fuller job description with explicit qualifications and responsibilities. "
+            "The provisional figure is not presented as a final match score.",
+            detail="Assessed {0} of 90 available weighted points; at least {1} are required.".format(
+                active_weight, minimum_assessed_weight
+            ),
+        ))
     missing_required = [item["skill"] for item in skill_gaps if item["classification"] == "required"]
     missing_preferred = [item["skill"] for item in skill_gaps if item["classification"] == "preferred"]
     if missing_required:
@@ -652,6 +698,9 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
 
     return {
         "score": score,
+        "score_status": score_status,
+        "provisional_score": provisional_score if not score_is_assessable else None,
+        "minimum_assessed_weight": minimum_assessed_weight,
         "version": MATCH_VERSION,
         "score_method": "normalized_assessed_dimensions",
         "assessment_coverage": {
@@ -682,9 +731,16 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
             "assessment": seniority_assessment,
         },
         "findings": findings,
-        "summary": "Assessed {0}% of the available weighted dimensions; {1} required and {2} preferred skills identified.".format(
-            int(round(100.0 * active_weight / 90)) if active_weight else 0,
-            len(required), len(preferred),
+        "summary": (
+            "Insufficient evidence for a reliable match score. Assessed {0}% of the available weighted dimensions; "
+            "{1} required and {2} preferred skills identified.".format(
+                int(round(100.0 * active_weight / 90)) if active_weight else 0,
+                len(required), len(preferred),
+            ) if not score_is_assessable else
+            "Assessed {0}% of the available weighted dimensions; {1} required and {2} preferred skills identified.".format(
+                int(round(100.0 * active_weight / 90)) if active_weight else 0,
+                len(required), len(preferred),
+            )
         ),
         "disclaimer": "A deterministic evidence-based estimate. Responsibility matching uses lexical overlap, not semantic embeddings or an employer ATS ranking.",
     }
