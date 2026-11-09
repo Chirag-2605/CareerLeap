@@ -386,6 +386,13 @@ def parse_resume_v2(filename: str, content: bytes) -> Dict[str, Any]:
         warnings.append("Candidate name could not be identified confidently.")
     if not candidate["profile_urls"]:
         warnings.append("No profile URLs were detected.")
+    incomplete_claims = [
+        record for record in records
+        if BULLET_RE.match(record["text"])
+        and re.search(r"\\bby\\s+\\d+(?:\\.\\d+)?\\s*$", record["text"], re.I)
+    ]
+    if incomplete_claims:
+        warnings.append("One or more achievement bullets may contain truncated numeric outcomes; review the extracted text.")
     # Flag suspiciously unfinished numeric claims; do not silently treat them
     # as complete quantified outcomes.
     incomplete_claims = [
