@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Set
 
+from .parser_v2 import SKILL_GROUPS
+
 QUALITY_VERSION = "quality-v2"
 MATCH_VERSION = "match-v2"
 
@@ -24,10 +26,10 @@ ACTION_VERBS = {
     "migrated", "deployed", "engineered", "maintained", "configured",
 }
 METRIC_RE = re.compile(
-    r"(?<!\\w)(?:\\d+(?:\\.\\d+)?\\s?%|\\d+(?:\\.\\d+)?\\s?(?:x|×)|"
-    r"[$₹€]\\s?\\d[\\d,.]*|\\d+\\+?\\s?(?:users|customers|requests|ms|"
+    r"(?<!\w)(?:\d+(?:\.\d+)?\s?%|\d+(?:\.\d+)?\s?(?:x|×)|"
+    r"[$₹€]\s?\d[\d,.]*|\d+\+?\s?(?:users|customers|requests|ms|"
     r"seconds|hours|days|teams|projects|records|employees|clients|services|"
-    r"transactions|queries|datasets|students|members))(?!\\w)",
+    r"transactions|queries|datasets|students|members))(?!\w)",
     re.I,
 )
 REQUIRED_CUES = ("required", "must have", "must", "minimum", "you need", "requirement")
@@ -132,7 +134,7 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
     if experience_items:
         experience_score += 4
     dated_evidence = [item for item in experience_items if re.search(
-        r"\\b(?:19|20)\\d{2}\\b|\\b(?:present|current)\\b", _text(item), re.I)]
+        r"\b(?:19|20)\d{2}\b|\b(?:present|current)\b", _text(item), re.I)]
     if dated_evidence:
         experience_score += 3
     if sections.get("projects"):
@@ -146,7 +148,7 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
 
     achievement_items = [item for item in all_items if item.get("kind") == "bullet" and _text(item)]
     action_items = [item for item in achievement_items if any(
-        re.search(r"\\b" + re.escape(verb) + r"\\b", _text(item), re.I) for verb in ACTION_VERBS)]
+        re.search(r"\b" + re.escape(verb) + r"\b", _text(item), re.I) for verb in ACTION_VERBS)]
     metric_items = [item for item in achievement_items if METRIC_RE.search(_text(item))]
     impact_score = min(10, len(action_items) * 2) + min(10, len(metric_items) * 3)
     impact_score = min(20, impact_score)
@@ -180,9 +182,9 @@ def analyze_quality_v2(resume: Dict[str, Any]) -> Dict[str, Any]:
     if education_items:
         education_score += 5
         edu_text = " ".join(_text(item) for item in education_items)
-        if re.search(r"\\b(bachelor|b\\.?tech|b\\.?e\\.?|master|m\\.?tech|ph\\.?d|degree|university|college)\\b", edu_text, re.I):
+        if re.search(r"\b(bachelor|b\.?tech|b\.?e\.?|master|m\.?tech|ph\.?d|degree|university|college)\b", edu_text, re.I):
             education_score += 3
-        if re.search(r"\\b(?:19|20)\\d{2}\\b", edu_text):
+        if re.search(r"\b(?:19|20)\d{2}\b", edu_text):
             education_score += 2
     else:
         findings.append(_finding("education_unseen", "Education details not detected", "low",
@@ -251,7 +253,7 @@ def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[s
     resume_skills = _skill_aliases(resume)
     required: Set[str] = set()
     preferred: Set[str] = set()
-    sentences = re.split(r"[\\n.!?;]+", job_description.lower())
+    sentences = re.split(r"[\n.!?;]+", job_description.lower())
     for canonical, aliases in SKILL_GROUPS.items():
         pattern = re.compile(
             r"(?<![a-z0-9])(?:" + "|".join(re.escape(alias.lower()) for alias in aliases) + r")(?![a-z0-9])",
