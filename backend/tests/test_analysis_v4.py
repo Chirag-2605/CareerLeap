@@ -132,7 +132,7 @@ def test_bachelors_degree_variant_receives_degree_credit():
 def test_role_only_job_match_is_insufficient_data_not_a_final_score():
     result = analyze_job_match_v4(
         strong_resume(),
-        "Entry Level Software Engineer",
+        "Entry Level Software Engineer opportunity for the product engineering team.",
     )
     assert result["score"] is None
     assert result["score_status"] == "insufficient_data"
