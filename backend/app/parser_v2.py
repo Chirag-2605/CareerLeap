@@ -349,6 +349,32 @@ def parse_resume_v2(filename: str, content: bytes) -> Dict[str, Any]:
     }
 
     skills = _detect_skills(records)
+    # Preserve provenance: a skill in the skills section is listed, while a
+    # skill in an experience/project bullet is demonstrated by resume evidence.
+    section_by_evidence = {}
+    achievement_evidence = set()
+    for section in normalized_sections:
+        for item in section.get("items", []):
+            for evidence_id in item.get("evidence_ids", []):
+                section_by_evidence[evidence_id] = section.get("type")
+                if section.get("type") in ("experience", "projects") and item.get("kind") == "bullet":
+                    achievement_evidence.add(evidence_id)
+    for skill in skills:
+        ids = list(dict.fromkeys(skill.get("evidence_ids", [])))
+        skill["evidence_ids"] = ids
+        skill["listed_evidence_ids"] = [
+            evidence_id for evidence_id in ids
+            if section_by_evidence.get(evidence_id) == "skills"
+        ]
+        skill["demonstrated_evidence_ids"] = [
+            evidence_id for evidence_id in ids if evidence_id in achievement_evidence
+        ]
+        # No inference is made from related concepts or adjacent technologies.
+        skill["inferred_evidence_ids"] = []
+        skill["provenance"] = (
+            "demonstrated" if skill["demonstrated_evidence_ids"] else
+            "listed" if skill["listed_evidence_ids"] else "mentioned"
+        )
     warnings = []
     if extension == ".pdf" and not records:
         warnings.append("No selectable text was extracted; this may be a scanned document.")
@@ -360,6 +386,17 @@ def parse_resume_v2(filename: str, content: bytes) -> Dict[str, Any]:
         warnings.append("Candidate name could not be identified confidently.")
     if not candidate["profile_urls"]:
         warnings.append("No profile URLs were detected.")
+    # Flag suspiciously unfinished numeric claims; do not silently treat them
+    # as complete quantified outcomes.
+    incomplete_claims = [
+        record for record in records
+        if BULLET_RE.match(record["text"])
+        and re.search(r"\\bby\\s+\\d+(?:\\.\\d+)?\\s*$", record["text"], re.I)
+    ]
+    if incomplete_claims:
+        warnings.append(
+            "One or more achievement bullets may contain truncated numeric outcomes; review the extracted text."
+        )
 
     return {
         "schema_version": SCHEMA_VERSION,
