@@ -233,7 +233,7 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
     metric_bullets = [item for item in all_bullets if METRIC_RE.search(item["text"])]
     incomplete_metric_bullets = [
         item for item in all_bullets
-        if re.search(r"\\bby\\s+\\d+(?:\\.\\d+)?\\s*$", item["text"], re.I)
+        if re.search(r"\bby\s+\d+(?:\.\d+)?\s*$", item["text"], re.I)
     ]
     if incomplete_metric_bullets:
         findings.append(_finding(
