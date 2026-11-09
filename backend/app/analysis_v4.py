@@ -418,6 +418,8 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                 classification = "required"
             elif any(re.search(pattern, lowered) for pattern in PREFERRED_CUES):
                 classification = "preferred"
+            else:
+                classification = "not_assessed"
         for canonical, values in aliases.items():
             if any(_has(lowered, alias) for alias in values):
                 priority = {"not_assessed": 0, "preferred": 1, "required": 2}
