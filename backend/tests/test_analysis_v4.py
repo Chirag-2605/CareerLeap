@@ -1,3 +1,4 @@
+import re
 from io import BytesIO
 
 from docx import Document
@@ -163,3 +164,65 @@ def test_long_skills_inventory_does_not_automatically_max_skill_component():
     result = analyze_quality_v4(parsed)
     skills = next(item for item in result["breakdown"] if item["key"] == "skills_evidence")
     assert skills["earned"] < skills["possible"]
+
+
+JOB_DESCRIPTION_V42 = """# Software Engineer – Entry Level
+Experience: 0–2 Years
+### Job Description
+We are looking for a motivated and talented Entry-Level Software Engineer to join our engineering team.
+### Key Responsibilities
+- Design, develop, test, and maintain reliable and scalable software applications.
+- Write clean, efficient, and maintainable code using Java and Kotlin.
+- Develop backend services, RESTful APIs, and application components.
+- Work with relational databases and write optimized SQL queries.
+- Participate in code reviews, debugging, and troubleshooting.
+- Collaborate with product managers, QA engineers, and other developers.
+- Follow software engineering best practices, including version control, testing, and documentation.
+- Continuously learn new technologies and contribute to improving engineering processes.
+### Required Skills and Qualifications
+- Bachelor's degree in Computer Science, Information Technology, or a related field.
+- Strong programming fundamentals and understanding of Data Structures and Algorithms.
+- Proficiency in at least one programming language, preferably Java or Kotlin.
+- Good understanding of Object-Oriented Programming (OOP) concepts.
+- Working knowledge of SQL and relational databases such as PostgreSQL or MySQL.
+- Understanding of database design, indexing, joins, and query optimization.
+- Familiarity with REST APIs, HTTP protocols, and backend development concepts.
+- Knowledge of Git and basic software development workflows.
+- Strong analytical, problem-solving, and communication skills.
+### Preferred Qualifications
+- Familiarity with Kotlin, Java, Spring Boot, or similar backend frameworks.
+- Understanding of multithreading, concurrency, and distributed systems.
+- Exposure to cloud platforms such as AWS.
+- Familiarity with build tools such as Gradle or Maven.
+- Experience with unit testing and integration testing.
+### What We Offer
+- Opportunity to work on large-scale, high-performance software systems.
+- Mentorship and opportunities for professional development.
+"""
+
+
+def test_v42_extracts_requirements_and_responsibilities_from_full_markdown_jd():
+    from app.analysis_v4 import _extract_jd_skills
+
+    parsed = _extract_jd_skills(JOB_DESCRIPTION_V42)
+    required = {item["name"] for item in parsed if item["classification"] == "required"}
+    preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
+    assert {"java", "kotlin", "sql", "postgresql", "mysql", "git", "rest api"} <= required
+    assert {"spring boot", "aws", "gradle", "maven", "distributed systems", "concurrency"} <= preferred
+
+    result = analyze_job_match_v4(strong_resume(), JOB_DESCRIPTION_V42)
+    assert result["assessment_coverage"]["required_skills"] >= 7
+    assert result["assessment_coverage"]["preferred_skills"] >= 5
+    assert result["assessment_coverage"]["responsibility_statements"] >= 7
+    assert result["score_status"] == "assessed"
+
+
+def test_v42_handles_collapsed_markdown_jd_headings_and_bullets():
+    from app.analysis_v4 import _extract_jd_skills
+
+    collapsed = re.sub(r"\\s+", " ", JOB_DESCRIPTION_V42)
+    parsed = _extract_jd_skills(collapsed)
+    required = {item["name"] for item in parsed if item["classification"] == "required"}
+    preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
+    assert "java" in required
+    assert "spring boot" in preferred
