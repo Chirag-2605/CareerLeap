@@ -37,6 +37,16 @@ V3 adds:
 
 V3 remains a deterministic heuristic. It does not use embeddings or an LLM, and responsibility overlap is a preliminary lexical signal rather than semantic understanding. Run the complete backend test suite before relying on V3 results.
 
+### Analysis V4 milestone (new, validation pending)
+
+V4 is an independent analysis implementation exposed at POST /api/v4/analyze. It does not call the V2 or V3 scoring functions; the V1-V3 endpoints remain available for side-by-side comparison.
+
+V4 quality scoring evaluates the content of achievement bullets, experience depth, measurable outcomes, demonstrated versus listed skills, education evidence, structure, and extraction/readability warnings. Section presence alone cannot produce a high score.
+
+V4 job matching carries Required Qualifications / Preferred Qualifications heading context across bullet lists, preserves technical responsibility statements, distinguishes demonstrated/listed/missing skills, and compares responsibility text with resume evidence using a transparent lexical similarity measure. Only dimensions with enough input evidence are included in the normalized score; unassessed dimensions are shown with assessed=false and do not receive free points.
+
+V4 is still a deterministic heuristic, not a semantic embedding model or an employer ATS prediction. Run the full backend test suite and compare real resumes/job descriptions before using the score in production.
+
 ## Architecture
 
 - mobile/: Expo + React Native app
