@@ -57,3 +57,28 @@ def test_job_match_v2_distinguishes_matched_and_missing_skills():
     assert "docker" in result["missing_preferred_skills"]
     assert result["version"] == "match-v2"
     assert sum(item["possible"] for item in result["breakdown"]) == 100
+
+
+
+def test_every_quality_deduction_has_an_explanation_and_valid_evidence():
+    resume = make_resume()
+    result = analyze_quality_v2(resume)
+    deducted = [item for item in result["breakdown"] if item["deducted"] > 0]
+    assert deducted
+    assert all(any(
+        finding["code"].startswith(item["key"] + "_")
+        or finding["code"] == "component_deduction_" + item["key"]
+        for finding in result["findings"]
+    ) for item in deducted)
+    valid_ids = {item["id"] for item in resume["evidence"]}
+    assert all(set(finding["evidence_ids"]).issubset(valid_ids) for finding in result["findings"])
+
+
+def test_neutral_job_skills_are_not_assumed_required():
+    result = analyze_job_match_v2(
+        make_resume(),
+        "The engineer will use Python and Java to build backend services and maintain systems.",
+    )
+    assert result["missing_required_skills"] == []
+    assert "python" in result["not_assessed"]
+    assert "java" in result["not_assessed"]
