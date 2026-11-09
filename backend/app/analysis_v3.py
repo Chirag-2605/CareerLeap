@@ -20,7 +20,6 @@ SKILL_EQUIVALENTS = {
     "mongodb": ("mongodb", "mongo db"),
     "machine learning": ("machine learning", "ml"),
     "scikit-learn": ("scikit-learn", "sklearn"),
-    "amazon web services": ("aws", "amazon web services"),
 }
 
 REQUIRED_PATTERNS = (
