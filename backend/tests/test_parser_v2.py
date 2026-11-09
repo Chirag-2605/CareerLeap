@@ -150,3 +150,35 @@ def test_rejects_too_little_extracted_text():
         assert False, "Expected ValueError"
     except ValueError as exc:
         assert "Very little text" in str(exc)
+
+
+
+def test_skill_provenance_separates_listed_from_demonstrated():
+    content = make_docx([
+        "Alex Doe",
+        "alex@example.com",
+        "Skills",
+        "Python, Java, Kotlin",
+        "Experience",
+        "Software Engineer | Example Corp | 2022 - 2024",
+        "• Built Python services for internal users.",
+    ])
+    result = parse_resume_v2("resume.docx", content)
+    skills = {item["canonical_name"]: item for item in result["skills"]}
+    assert skills["python"]["listed_evidence_ids"]
+    assert skills["python"]["demonstrated_evidence_ids"]
+    assert skills["java"]["listed_evidence_ids"]
+    assert not skills["java"]["demonstrated_evidence_ids"]
+    assert skills["java"]["inferred_evidence_ids"] == []
+
+
+def test_warns_when_bullet_ends_with_suspicious_incomplete_metric():
+    content = make_docx([
+        "Alex Doe",
+        "alex@example.com",
+        "Experience",
+        "• Improved user engagement by 25",
+        "Additional resume content to ensure extraction has sufficient text.",
+    ])
+    result = parse_resume_v2("resume.docx", content)
+    assert any("truncated numeric outcomes" in warning for warning in result["warnings"])
