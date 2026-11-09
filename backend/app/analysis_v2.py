@@ -244,22 +244,31 @@ def _skill_aliases(resume: Dict[str, Any]) -> Dict[str, str]:
 
 
 def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[str, Any]:
-    """Conservative lexical job alignment; semantic equivalence is not inferred."""
+    """Conservative catalog-based job alignment; semantic equivalence is not inferred."""
     if not job_description or len(job_description.strip()) < 40:
         raise ValueError("Please provide a job description with at least 40 characters.")
 
     resume_skills = _skill_aliases(resume)
-    jd = job_description.lower()
     required: Set[str] = set()
     preferred: Set[str] = set()
-    for skill in resume.get("skill_catalog", []):
-        name = str(skill).lower()
-        if re.search(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", jd):
-            preferred.add(name) if any(cue in jd for cue in PREFERRED_CUES) and not any(
-                cue in jd for cue in REQUIRED_CUES) else required.add(name)
+    sentences = re.split(r"[\\n.!?;]+", job_description.lower())
+    for canonical, aliases in SKILL_GROUPS.items():
+        pattern = re.compile(
+            r"(?<![a-z0-9])(?:" + "|".join(re.escape(alias.lower()) for alias in aliases) + r")(?![a-z0-9])",
+            re.I,
+        )
+        matching_sentences = [sentence for sentence in sentences if pattern.search(sentence)]
+        if not matching_sentences:
+            continue
+        for sentence in matching_sentences:
+            if any(cue in sentence for cue in PREFERRED_CUES):
+                preferred.add(canonical)
+            else:
+                # Neutral mentions are treated as requirements only when explicitly
+                # framed as required; otherwise keep them in the assessed set as
+                # neutral requirements for this initial baseline.
+                required.add(canonical)
 
-    # Parser skills are a finite vocabulary. Requirements outside it are explicitly
-    # reported as not assessed rather than silently treated as missing.
     detected = set(resume_skills)
     matched_required = sorted(required & detected)
     missing_required = sorted(required - detected)
@@ -269,24 +278,34 @@ def analyze_job_match_v2(resume: Dict[str, Any], job_description: str) -> Dict[s
     preferred_score = round(10 * len(matched_preferred) / len(preferred)) if preferred else 10
 
     sections = _sections(resume)
-    experience_text = " ".join(_text(item) for item in sections.get("experience", []) + sections.get("projects", [])).lower()
-    matched_in_context = sorted(skill for skill in matched_required if re.search(
-        r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])", experience_text))
+    experience_text = " ".join(
+        _text(item) for item in sections.get("experience", []) + sections.get("projects", [])
+    ).lower()
+    matched_in_context = sorted(
+        skill for skill in matched_required
+        if re.search(r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])", experience_text)
+    )
     context_score = round(20 * len(matched_in_context) / len(matched_required)) if matched_required else 20
     score = min(100, required_score + preferred_score + context_score)
 
     findings = []
     if missing_required:
-        findings.append(_finding("required_skills_missing", "Required skills not detected", "high",
-                                 "If you have these skills, add truthful examples in relevant experience or projects.",
-                                 detail=", ".join(missing_required)))
+        findings.append(_finding(
+            "required_skills_missing", "Job-description skills not detected in resume", "high",
+            "If you genuinely have these skills, add specific examples in relevant experience or projects.",
+            detail=", ".join(missing_required),
+        ))
     if missing_preferred:
-        findings.append(_finding("preferred_skills_missing", "Preferred skills not detected", "low",
-                                 "Treat preferred requirements as differentiators, not automatic disqualifiers.",
-                                 detail=", ".join(missing_preferred)))
+        findings.append(_finding(
+            "preferred_skills_missing", "Preferred skills not detected", "low",
+            "Treat preferred requirements as differentiators, not automatic disqualifiers.",
+            detail=", ".join(missing_preferred),
+        ))
     if not required and not preferred:
-        findings.append(_finding("no_catalog_skills", "No catalog skills could be assessed", "medium",
-                                 "Review the job description manually; this baseline only checks its supported skill vocabulary."))
+        findings.append(_finding(
+            "no_catalog_skills", "No supported catalog skills could be assessed", "medium",
+            "Review the job description manually; this baseline only recognizes its explicit supported skill vocabulary.",
+        ))
 
     return {
         "score": score,
