@@ -338,14 +338,14 @@ def analyze_job_match_v3(resume: Dict[str, Any], job_description: str) -> Dict[s
         )
         seniority_points = 5 if c_rank >= t_rank else 0
 
-    # Unassessed role/seniority signals are neutral: redistribute their 10 points
-    # across the other dimensions to avoid penalizing missing job-title metadata.
-    role_seniority_assessed = bool(candidate_role and target_role) + bool(candidate_level and target_level)
-    if role_seniority_assessed == 0:
-        responsibility_points += 10
-    elif role_seniority_assessed == 1:
-        responsibility_points += 5
+    # Unknown role/seniority signals are neutral, not deductions. Keep the
+    # category weights fixed so the displayed breakdown always totals 100.
+    role_seniority_assessed = int(bool(candidate_role and target_role)) + int(bool(candidate_level and target_level))
     role_seniority_points = role_points + seniority_points
+    if role_seniority_assessed == 0:
+        role_seniority_points = 10
+    elif role_seniority_assessed == 1:
+        role_seniority_points += 5
 
     score = min(100, required_points + preferred_points + context_points +
                 responsibility_points + role_seniority_points)
@@ -399,11 +399,9 @@ def analyze_job_match_v3(resume: Dict[str, Any], job_description: str) -> Dict[s
         {"key": "required_skills", "label": "Required skill coverage", "earned": required_points, "possible": 45, "deducted": 45-required_points},
         {"key": "preferred_skills", "label": "Preferred skill coverage", "earned": preferred_points, "possible": 10, "deducted": 10-preferred_points},
         {"key": "skill_demonstration", "label": "Skills demonstrated in experience/projects", "earned": context_points, "possible": 15, "deducted": 15-context_points},
-        {"key": "responsibility_alignment", "label": "Responsibility alignment", "earned": responsibility_points, "possible": 20 + (10 if role_seniority_assessed == 0 else 5 if role_seniority_assessed == 1 else 0), "deducted": (20 + (10 if role_seniority_assessed == 0 else 5 if role_seniority_assessed == 1 else 0))-responsibility_points},
+        {"key": "responsibility_alignment", "label": "Responsibility alignment", "earned": responsibility_points, "possible": 20, "deducted": 20-responsibility_points},
         {"key": "role_seniority", "label": "Role and seniority signals", "earned": role_seniority_points, "possible": 10, "deducted": 10-role_seniority_points},
     ]
-    # When one/both role signals are unknown, those points are deliberately
-    # redistributed into responsibility alignment; keep the displayed total 100.
     return {
         "score": score,
         "version": MATCH_VERSION,
