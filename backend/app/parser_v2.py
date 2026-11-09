@@ -62,7 +62,7 @@ SKILL_GROUPS = {
     "fastapi": ("fastapi",),
     "django": ("django",),
     "flask": ("flask",),
-    "git": ("git", "github"),
+    "git": ("git",),
     "linux": ("linux",),
     "pandas": ("pandas",),
     "numpy": ("numpy",),
@@ -149,6 +149,7 @@ def _extract_docx(content: bytes) -> List[Dict[str, Any]]:
     records = []
     try:
         doc = Document(BytesIO(content))
+        table_index = 0
         # Preserve document order for paragraphs and tables instead of appending
         # every table after all paragraphs.
         from docx.table import Table
@@ -163,7 +164,6 @@ def _extract_docx(content: bytes) -> List[Dict[str, Any]]:
                         records.append({"text": line, "page": None, "source": "docx_paragraph"})
             elif child.tag.endswith("}tbl"):
                 table = Table(child, doc)
-                table_index = len([r for r in records if r.get("source") == "docx_table"])
                 for row_index, row in enumerate(table.rows):
                     cells = [_clean_line(cell.text) for cell in row.cells]
                     line = " | ".join(cell for cell in cells if cell)
@@ -172,6 +172,7 @@ def _extract_docx(content: bytes) -> List[Dict[str, Any]]:
                             "text": line, "page": None, "source": "docx_table",
                             "table_index": table_index, "row_index": row_index,
                         })
+                table_index += 1
     except Exception as exc:
         raise ValueError("We couldn't read this DOCX. Try opening and re-saving it in Word.") from exc
     return records
