@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+
+# Firebase credentials
+*service-account*.json
+firebase-adminsdk*.json
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
