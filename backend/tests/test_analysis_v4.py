@@ -78,7 +78,8 @@ def test_unassessed_job_dimensions_do_not_receive_free_points():
     assert result["assessment_coverage"]["preferred_skills"] == 0
     assert result["breakdown"][0]["assessed"] is False
     assert result["breakdown"][0]["earned"] is None
-    assert result["score"] == 0 or result["assessment_coverage"]["assessed_weight"] > 0
+    assert result["score"] is None
+    assert result["score_status"] == "insufficient_data"
 
 
 def test_responsibility_matching_keeps_lines_that_mention_technical_skills():
