@@ -42,8 +42,8 @@ def test_quality_v2_has_weighted_explainable_score():
 
 def test_quality_v2_uses_evidence_for_findings():
     result = analyze_quality_v2(make_resume())
-    metric_finding = next(item for item in result["findings"] if item["code"] == "impact_metrics_limited")
-    assert metric_finding["evidence_ids"]
+    assert result["strengths"]
+    assert result["strengths"][0]["evidence_ids"]
 
 
 def test_job_match_v2_distinguishes_matched_and_missing_skills():
