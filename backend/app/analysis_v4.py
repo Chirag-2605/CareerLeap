@@ -405,34 +405,99 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
         "mongodb": ("mongodb", "mongo db"),
         "machine learning": ("machine learning", "ml"),
         "scikit-learn": ("scikit-learn", "sklearn"),
+        "data structures and algorithms": ("data structures and algorithms", "data structures", "algorithms"),
+        "object-oriented programming": ("object-oriented programming", "object oriented programming", "oop"),
+        "http": ("http", "http protocols"),
+        "relational databases": ("relational databases", "relational database"),
+        "database design": ("database design",),
+        "indexing": ("indexing", "database indexing"),
+        "query optimization": ("query optimization", "sql optimization"),
+        "concurrency": ("concurrency", "multithreading", "multi-threading"),
+        "distributed systems": ("distributed systems",),
+        "gradle": ("gradle",),
+        "maven": ("maven",),
+        "unit testing": ("unit testing", "unit tests"),
+        "integration testing": ("integration testing", "integration tests"),
     })
     return aliases
 
 
+def _normalize_jd_lines(job_description: str) -> List[str]:
+    """Normalize common Markdown/plain-text JD formatting without discarding content."""
+    text = str(job_description or "").replace("\r\n", "\n").replace("\r", "\n")
+    # Headings often arrive as Markdown; make them explicit boundaries.
+    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
+    text = text.replace("**", "").replace("__", "")
+    # Preserve bullet boundaries even when a client collapses paragraph newlines.
+    text = re.sub(r"\s+([-*•●▪])\s+(?=\S)", r"\n\1 ", text)
+    return [line.strip() for line in text.split("\n") if line.strip()]
+
+
 def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
-    lines = [re.sub(r"^\s*(?:[-*•●▪]|\d+[.)])\s*", "", line).strip()
-             for line in job_description.splitlines()]
+    lines = _normalize_jd_lines(job_description)
     current = "not_assessed"
     output = []
-    for line in lines:
+    for raw_line in lines:
+        line = re.sub(r"^\s*(?:[-*•●▪]|\d+[.)])\s*", "", raw_line).strip()
+        line = line.strip()
         if not line:
             continue
         heading = _norm(line).strip(": -")
-        if re.search(r"\b(required qualifications?|requirements?|must have|what you need|minimum qualifications?)\b", heading):
+        # Accept common variants, including "Required Skills and Qualifications".
+        if re.search(
+            r"\b(required(?:\s+skills)?(?:\s+and)?\s+qualifications?|"
+            r"required\s+skills|requirements?|must have|what you need|"
+            r"minimum qualifications?|minimum requirements?)\b",
+            heading,
+        ):
             current = "required"
+            # A heading and its first statement may share a line.
+            remainder = re.sub(
+                r"^.*?\b(?:required(?:\s+skills)?(?:\s+and)?\s+qualifications?|"
+                r"required\s+skills|requirements?|must have|what you need|"
+                r"minimum qualifications?|minimum requirements?)\b\s*[:\-–—]?\s*",
+                "", line, flags=re.I,
+            ).strip()
+            if remainder:
+                output.append({"text": remainder, "classification": current})
             continue
-        if re.search(r"\b(preferred qualifications?|nice to have|desired qualifications?)\b", heading):
+        if re.search(
+            r"\b(preferred(?:\s+skills)?(?:\s+and)?\s+qualifications?|"
+            r"preferred\s+skills|nice to have|desired qualifications?|"
+            r"bonus qualifications?)\b",
+            heading,
+        ):
             current = "preferred"
+            remainder = re.sub(
+                r"^.*?\b(?:preferred(?:\s+skills)?(?:\s+and)?\s+qualifications?|"
+                r"preferred\s+skills|nice to have|desired qualifications?|"
+                r"bonus qualifications?)\b\s*[:\-–—]?\s*",
+                "", line, flags=re.I,
+            ).strip()
+            if remainder:
+                output.append({"text": remainder, "classification": current})
             continue
-        if re.search(r"\b(responsibilities|what you will do|what you’ll do|what you'll do|your role|key duties|duties and responsibilities|role responsibilities)\b", heading):
+        if re.search(
+            r"\b(key\s+)?(responsibilities|what you will do|what you’ll do|"
+            r"what you'll do|your role|key duties|duties and responsibilities|"
+            r"role responsibilities)\b",
+            heading,
+        ):
             current = "responsibility"
+            remainder = re.sub(
+                r"^.*?\b(?:key\s+)?(?:responsibilities|what you will do|"
+                r"what you’ll do|what you'll do|your role|key duties|"
+                r"duties and responsibilities|role responsibilities)\b\s*[:\-–—]?\s*",
+                "", line, flags=re.I,
+            ).strip()
+            if remainder:
+                output.append({"text": remainder, "classification": current})
             continue
         if re.search(r"\b(about the company|about us|benefits|what we offer)\b", heading):
             current = "not_assessed"
             continue
         output.append({"text": line, "classification": current})
     return output
-
 
 def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
     aliases = _skill_aliases()
