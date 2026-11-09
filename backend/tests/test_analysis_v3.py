@@ -77,7 +77,7 @@ def test_listed_only_skill_gets_partial_credit_and_explanation():
 def test_unknown_role_and_seniority_are_neutral_and_breakdown_is_100():
     result = analyze_job_match_v3(
         make_resume(),
-        "Required: Python. Build backend services and collaborate with product teams.",
+        "Required: Python. Coordinate schedules and organize records for the team.",
     )
     assert result["role_alignment"]["assessment"] == "not_assessed"
     assert result["seniority_alignment"]["assessment"] == "not_assessed"
