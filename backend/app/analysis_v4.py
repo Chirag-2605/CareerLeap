@@ -418,13 +418,13 @@ def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
         if not line:
             continue
         heading = _norm(line).strip(": -")
-        if re.search(r"\b(required qualifications?|requirements?|must have|what you need)\b", heading):
+        if re.search(r"\b(required qualifications?|requirements?|must have|what you need|minimum qualifications?)\b", heading):
             current = "required"
             continue
         if re.search(r"\b(preferred qualifications?|nice to have|desired qualifications?)\b", heading):
             current = "preferred"
             continue
-        if re.search(r"\b(responsibilities|what you will do|your role|key duties)\b", heading):
+        if re.search(r"\b(responsibilities|what you will do|what you’ll do|what you'll do|your role|key duties|duties and responsibilities|role responsibilities)\b", heading):
             current = "responsibility"
             continue
         if re.search(r"\b(about the company|about us|benefits|what we offer)\b", heading):
