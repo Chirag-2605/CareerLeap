@@ -425,8 +425,8 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
 def _normalize_jd_lines(job_description: str) -> List[str]:
     """Normalize common Markdown/plain-text JD formatting without discarding content."""
     text = str(job_description or "").replace("\r\n", "\n").replace("\r", "\n")
-    # Headings often arrive as Markdown; make them explicit boundaries.
-    text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)
+    # Markdown heading markers can be inline when a frontend collapses newlines.
+    text = re.sub(r"\s*#{1,6}\s*", "\\n", text)
     text = text.replace("**", "").replace("__", "")
     # Preserve bullet boundaries even when a client collapses paragraph newlines.
     text = re.sub(r"\s+([-*•●▪])\s+(?=\S)", r"\n\1 ", text)
