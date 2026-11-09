@@ -102,3 +102,63 @@ def test_breakdown_score_is_normalized_over_assessed_dimensions():
     denominator = sum(item["possible"] for item in active)
     assert denominator == result["assessment_coverage"]["assessed_weight"]
     assert result["score"] == round(100.0 * numerator / denominator)
+
+
+
+def test_metric_detection_handles_percentages_and_scale_nouns():
+    from app.analysis_v4 import METRIC_RE
+
+    examples = [
+        "achieving 95% detection accuracy across 15+ restricted classes",
+        "improve model precision by 9%",
+        "auto-generate 30+ Athena SQL queries",
+        "add 10+ datasets without frontend code changes",
+        "increased task completion rates by 20%",
+    ]
+    assert all(METRIC_RE.search(value) for value in examples)
+
+
+def test_bachelors_degree_variant_receives_degree_credit():
+    parsed = parse_lines([
+        "Alex Doe", "alex@example.com", "Education",
+        "Bachelors of Technology in Computer Science and Engineering",
+        "Example Institute 2022 - 2026",
+    ])
+    result = analyze_quality_v4(parsed)
+    education = next(item for item in result["breakdown"] if item["key"] == "education")
+    assert education["earned"] == 8
+
+
+def test_role_only_job_match_is_insufficient_data_not_a_final_score():
+    result = analyze_job_match_v4(
+        strong_resume(),
+        "Entry Level Software Engineer",
+    )
+    assert result["score"] is None
+    assert result["score_status"] == "insufficient_data"
+    assert result["provisional_score"] is not None
+    assert result["assessment_coverage"]["assessed_weight"] < result["minimum_assessed_weight"]
+
+
+def test_incomplete_numeric_claim_is_flagged_from_joined_bullet_text():
+    parsed = parse_lines([
+        "Alex Doe", "alex@example.com", "Experience",
+        "Software Developer Intern",
+        "• Integrated a chatbot for real-time support, enhancing user engagement by 25",
+        "Education", "Bachelor of Technology, Example University, 2022",
+    ])
+    result = analyze_quality_v4(parsed)
+    assert any(item["code"] == "incomplete_numeric_claim" for item in result["findings"])
+    assert result["evidence_summary"]["incomplete_numeric_claims"] == 1
+
+
+def test_long_skills_inventory_does_not_automatically_max_skill_component():
+    parsed = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Python, Java, JavaScript, TypeScript, React, Node.js, Express, SQL, "
+        "PostgreSQL, MongoDB, AWS, Docker, Kubernetes, Git, Terraform",
+        "Education", "Bachelor of Technology, Example University, 2022",
+    ])
+    result = analyze_quality_v4(parsed)
+    skills = next(item for item in result["breakdown"] if item["key"] == "skills_evidence")
+    assert skills["earned"] < skills["possible"]
