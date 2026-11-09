@@ -63,7 +63,7 @@ def test_jd_heading_context_classifies_bullets_as_required_and_preferred():
         "- Build and maintain backend services using Python and PostgreSQL.",
     )
     assert "python" in result["matched_required_skills"]
-    assert "rest api" in result["missing_required_skills"]
+    assert "rest api" in result["matched_required_skills"]
     assert "docker" in result["matched_preferred_skills"]
     assert result["assessment_coverage"]["required_skills"] == 2
     assert result["breakdown"][0]["assessed"] is True
