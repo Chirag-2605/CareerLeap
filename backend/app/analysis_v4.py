@@ -468,7 +468,7 @@ def _clean_job_description(job_description: str) -> Tuple[str, List[str]]:
             kept.append(line)
             continue
         if _is_analyzer_payload(stripped) or re.search(
-            r'"(?:score|breakdown|responsibility_matches|skill_matches|assessment_coverage|quality|job_match)"\\s*:',
+            r'"(?:score|breakdown|responsibility_matches|skill_matches|assessment_coverage|quality|job_match)"\s*:',
             stripped,
         ):
             removed = True
