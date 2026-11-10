@@ -94,6 +94,7 @@ SKILL_GROUPS = {
     "api development": ("api development", "api design", "api implementation"),
     "gradle": ("gradle",),
     "maven": ("maven",),
+    "test automation": ("test automation", "test automation framework", "test automation frameworks"),
 }
 
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
@@ -192,17 +193,40 @@ def _alias_pattern(alias: str) -> re.Pattern:
 def _detect_skills(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # A canonical skill is emitted once with all evidence lines that contain one
     # of its explicit aliases. Related concepts are not treated as synonyms.
+    scan_records = [
+        (record["text"], [record["evidence_id"]])
+        for record in records
+    ]
+    # PDF layout engines can split a multi-word skill at a line boundary. Rejoin
+    # a small allowlist of unambiguous split terms while preserving both source IDs.
+    continuations = {
+        ("test", "automation"),
+        ("machine", "learning"),
+        ("deep", "learning"),
+    }
+    for previous, current in zip(records, records[1:]):
+        left = previous["text"].strip().lower()
+        right = current["text"].strip().lower()
+        is_split_continuation = any(
+            left.endswith(first) and re.match(r"^" + re.escape(second) + r"\b", right)
+            for first, second in continuations
+        )
+        if is_split_continuation:
+            scan_records.append((
+                previous["text"].strip() + " " + current["text"].strip(),
+                [previous["evidence_id"], current["evidence_id"]],
+            ))
+
     results = []
     for canonical, aliases in SKILL_GROUPS.items():
         matching_ids = []
-        for record in records:
-            text = record["text"]
+        for text, evidence_ids in scan_records:
             if any(_alias_pattern(alias).search(text) for alias in aliases):
-                matching_ids.append(record["evidence_id"])
+                matching_ids.extend(evidence_ids)
         if matching_ids:
             results.append({
                 "canonical_name": canonical,
-                "evidence_ids": matching_ids,
+                "evidence_ids": list(dict.fromkeys(matching_ids)),
                 "confidence": 1.0,
             })
     return sorted(results, key=lambda item: item["canonical_name"])

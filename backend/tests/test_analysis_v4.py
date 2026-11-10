@@ -42,8 +42,8 @@ def strong_resume():
 def test_quality_v4_is_independent_and_scores_strong_resume_higher():
     weak = analyze_quality_v4(weak_resume())
     strong = analyze_quality_v4(strong_resume())
-    assert weak["version"] == "quality-v4.4"
-    assert strong["version"] == "quality-v4.4"
+    assert weak["version"] == "quality-v4.5"
+    assert strong["version"] == "quality-v4.5"
     assert 0 <= weak["score"] < strong["score"] <= 100
     assert sum(item["possible"] for item in strong["breakdown"]) == 100
     assert sum(item["earned"] for item in strong["breakdown"]) == strong["score"]
@@ -432,10 +432,11 @@ def test_v44_dakshta_regression_language_relational_db_sdet_and_real_responsibil
 
     # Duties must retrieve evidence from actual experience/project bullets.
     assert result["assessment_coverage"]["responsibility_statements"] == 8
-    assert result["assessment_coverage"]["responsibility_matches"] >= 5
+    assert result["assessment_coverage"]["responsibility_matches"] >= 3
     assert result["breakdown"][2]["earned"] > 0
     assert all(item["evidence_ids"] for item in result["responsibility_matches"])
-    assert any(item["evidence_type"] == "listed" for item in result["responsibility_matches"])
+    assert all(item["evidence_status"] == "demonstrated" for item in result["responsibility_matches"])
+    assert result["responsibility_listed_evidence"]
 
 
 def test_v44_does_not_treat_related_frameworks_or_api_terms_as_equivalent_skills():
@@ -465,3 +466,363 @@ def test_v44_generic_language_requirement_respects_preferred_section_context():
     examples = next(item for item in parsed if item["name"] == "preferred_programming_language")
     assert generic["classification"] == "preferred"
     assert examples["classification"] == "preferred"
+
+
+# ---------------------------------------------------------------------------
+# V4.5 diagnostic regression matrix.
+# These tests intentionally cover both positive evidence and hard negatives.
+# A retrieved excerpt is not a match unless it supports the actual JD concept.
+# ---------------------------------------------------------------------------
+
+def _responsibility_result(resume, duty):
+    return analyze_job_match_v4(
+        resume,
+        "Entry Level Software Engineer\nResponsibilities:\n- " + duty,
+    )
+
+
+def test_v45_gzip_and_object_storage_do_not_prove_sql_query_optimization():
+    from app.analysis_v4 import _responsibility_similarity
+
+    duty = "Work with relational databases and write optimized SQL queries."
+    evidence = (
+        "Optimized device log storage and transfer using gzip compression, "
+        "achieving 80% reduction in log size before S3 upload."
+    )
+    assert _responsibility_similarity(duty, evidence) == 0.0
+
+
+def test_v45_server_monitoring_dashboard_is_not_automatically_backend_development():
+    from app.analysis_v4 import _responsibility_concepts
+
+    evidence = (
+        "Engineered a centralized server management dashboard using React, "
+        "Python, and AWS to monitor 22 lab servers across QA teams."
+    )
+    assert "backend_development" not in _responsibility_concepts(evidence)
+
+
+def test_v45_team_count_and_qa_audience_do_not_prove_collaboration():
+    from app.analysis_v4 import _responsibility_concepts
+
+    evidence = (
+        "Built a dashboard to monitor 22 lab servers across 6 QA sub-teams."
+    )
+    assert "collaboration" not in _responsibility_concepts(evidence)
+
+
+def test_v45_explicit_cross_functional_work_does_support_collaboration():
+    from app.analysis_v4 import _responsibility_concepts
+
+    evidence = (
+        "Collaborated with product managers, QA engineers, and developers "
+        "to agree on release criteria and resolve integration issues."
+    )
+    assert "collaboration" in _responsibility_concepts(evidence)
+
+
+def test_v45_sql_and_mysql_listings_are_not_demonstrated_database_optimization():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "SQL, MySQL, MongoDB",
+        "Experience", "Software Engineer Intern",
+        "• Optimized device log compression before uploading files to S3.",
+    ])
+    result = _responsibility_result(
+        resume, "Design database indexes and optimize SQL query execution."
+    )
+    assert not result["responsibility_matches"]
+
+
+def test_v45_explicit_index_and_query_tuning_bullet_supports_database_optimization():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "SQL, PostgreSQL",
+        "Experience", "Software Engineer Intern",
+        "• Improved PostgreSQL query performance by adding indexes and rewriting slow SQL joins.",
+    ])
+    result = _responsibility_result(
+        resume, "Design database indexes and optimize SQL query execution."
+    )
+    assert result["responsibility_matches"]
+    match = result["responsibility_matches"][0]
+    assert match["evidence_status"] == "demonstrated"
+    assert "database_optimization" in match["matched_concepts"]
+
+
+def test_v45_backend_api_project_out_ranks_frontend_dashboard_for_backend_duty():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "React, Node.js, Express.js, REST APIs",
+        "Experience", "Software Engineer Intern",
+        "• Built a React dashboard for QA users to monitor application status.",
+        "Projects",
+        "• Developed backend services and REST APIs using Node.js and Express.js, with MongoDB persistence.",
+    ])
+    result = _responsibility_result(
+        resume, "Develop backend services and RESTful APIs."
+    )
+    assert result["responsibility_matches"]
+    assert "Node.js" in result["responsibility_matches"][0]["resume_excerpt"]
+
+
+def test_v45_displayed_primary_excerpt_has_primary_evidence_ids():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Experience", "Software Engineer Intern",
+        "• Developed backend services using Node.js and Express.js.",
+        "• Built a React dashboard for internal users.",
+    ])
+    result = _responsibility_result(resume, "Develop backend services and REST APIs.")
+    match = result["responsibility_matches"][0]
+    primary_text = match["resume_excerpt"]
+    primary_ids = {
+        evidence_id
+        for section in resume["sections"]
+        for item in section["items"]
+        if item["text"] == primary_text
+        for evidence_id in item["evidence_ids"]
+    }
+    assert primary_ids
+    assert primary_ids <= set(match["evidence_ids"])
+
+
+def test_v45_skills_list_code_quality_does_not_count_as_written_maintainable_code():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Code Reviews, Code Quality, Java, Kotlin",
+        "Experience", "Software Engineer Intern",
+        "• Monitored application health dashboards and triaged service alerts.",
+    ])
+    result = _responsibility_result(
+        resume, "Write clean, efficient, and maintainable code using Java and Kotlin."
+    )
+    assert not result["responsibility_matches"]
+
+
+def test_v45_skills_list_testing_does_not_count_as_demonstrated_testing_duty():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Unit Testing, Integration Testing, Automated Testing",
+        "Experience", "Software Engineer Intern",
+        "• Built a React dashboard for internal users.",
+    ])
+    result = _responsibility_result(
+        resume, "Design and execute unit and integration tests."
+    )
+    assert not result["responsibility_matches"]
+
+
+def test_v45_actual_test_execution_is_retrieved_for_testing_duty():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Experience", "QA Automation Intern",
+        "• Wrote and executed 120 integration tests for payment APIs, catching 18 regressions before release.",
+    ])
+    result = _responsibility_result(
+        resume, "Design and execute unit and integration tests."
+    )
+    assert result["responsibility_matches"]
+    assert result["responsibility_matches"][0]["evidence_status"] == "demonstrated"
+
+
+def test_v45_actual_failure_diagnosis_supports_debugging_and_troubleshooting():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Experience", "SDET Intern",
+        "• Diagnosed production failures by analyzing application logs and tracing root causes, reducing mean triage time by 60%.",
+    ])
+    result = _responsibility_result(
+        resume, "Debug software failures and troubleshoot production issues."
+    )
+    assert result["responsibility_matches"]
+    assert "diagnostics" in result["responsibility_matches"][0]["matched_concepts"]
+
+
+def test_v45_s3_storage_optimization_does_not_match_relational_database_duty():
+    from app.analysis_v4 import _responsibility_similarity
+
+    assert _responsibility_similarity(
+        "Work with relational databases and write optimized SQL queries.",
+        "Reduced S3 object storage size by 80% using gzip compression.",
+    ) == 0.0
+
+
+def test_v45_rest_api_mention_does_not_prove_http_protocol_expertise():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "REST APIs",
+        "Experience", "Software Engineer Intern",
+        "• Built REST APIs for an internal application.",
+    ])
+    result = analyze_job_match_v4(
+        resume, "Required Qualifications:\n- HTTP protocol expertise"
+    )
+    assert "http" in result["missing_required_skills"]
+
+
+def test_v45_express_does_not_satisfy_spring_boot_requirement():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "Node.js, Express.js",
+        "Experience", "Software Engineer Intern",
+        "• Developed backend services using Node.js and Express.js.",
+    ])
+    result = analyze_job_match_v4(
+        resume, "Entry Level Backend Software Engineer\nRequired Qualifications:\n- Spring Boot"
+    )
+    assert "spring boot" in result["missing_required_skills"]
+
+
+def test_v45_any_programming_language_phrase_is_recognized_as_generic_requirement():
+    from app.analysis_v4 import _extract_jd_skills
+
+    requirements = _extract_jd_skills(
+        "Required Qualifications:\n- Proficiency in any programming language."
+    )
+    generic = [item for item in requirements if item["name"] == "programming_language"]
+    assert len(generic) == 1
+    assert generic[0]["match_rule"] == "any_language"
+
+
+def test_v45_generic_language_does_not_turn_java_kotlin_examples_into_hard_requirements():
+    from app.analysis_v4 import _extract_jd_skills
+
+    requirements = _extract_jd_skills(
+        "Required Qualifications:\n"
+        "- Proficiency in at least one programming language, preferably Java or Kotlin."
+    )
+    names = {item["name"] for item in requirements}
+    assert "programming_language" in names
+    assert "preferred_programming_language" in names
+    assert "java" not in names
+    assert "kotlin" not in names
+
+
+def test_v45_relational_database_alternatives_are_one_requirement_group():
+    from app.analysis_v4 import _extract_jd_skills
+
+    requirements = _extract_jd_skills(
+        "Required Qualifications:\n"
+        "- Working knowledge of SQL and relational databases such as PostgreSQL or MySQL."
+    )
+    groups = [item for item in requirements if item["name"] == "relational databases"]
+    assert len(groups) == 1
+    assert groups[0]["alternatives"] == ["postgresql", "mysql"]
+
+
+def test_v45_requirement_parser_keeps_join_and_indexing_as_distinct_evidence_gaps():
+    from app.analysis_v4 import _extract_jd_skills
+
+    requirements = _extract_jd_skills(
+        "Required Qualifications:\n"
+        "- Understanding of database design, indexing, joins, and query optimization."
+    )
+    names = {item["name"] for item in requirements}
+    assert {"database design", "indexing", "joins", "query optimization"} <= names
+
+
+def test_v45_preferred_language_examples_remain_preferred_in_preferred_section():
+    from app.analysis_v4 import _extract_jd_skills
+
+    requirements = _extract_jd_skills(
+        "Preferred Qualifications:\n"
+        "- Proficiency in at least one programming language, preferably Java or Kotlin."
+    )
+    assert all(
+        item["classification"] == "preferred"
+        for item in requirements
+        if item["name"] in {"programming_language", "preferred_programming_language"}
+    )
+
+
+def test_v45_role_family_recognizes_sdet_without_promoting_it_to_software_developer_specialty():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Entry Level Software Engineer\nRequired Qualifications:\n- Python",
+    )
+    assert result["role_alignment"]["candidate_family"] == "software_engineering"
+    assert result["role_alignment"]["candidate_specialization"] == "quality_engineering"
+
+
+def test_v45_internship_is_not_penalized_for_entry_level_zero_to_two_year_role():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Entry Level Software Engineer\nExperience: 0-2 Years\n"
+        "Required Qualifications:\n- Python",
+    )
+    assert result["seniority_alignment"]["assessment"] == "aligned"
+
+
+def test_v45_qualification_bullets_do_not_leak_into_responsibility_matching():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "Python, Java",
+        "Experience", "Software Engineer Intern",
+        "• Built a React dashboard for internal users.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Required Qualifications:\n- Python\n- Java\n"
+        "Preferred Qualifications:\n- AWS",
+    )
+    assert result["assessment_coverage"]["responsibility_statements"] == 0
+    assert result["responsibility_matches"] == []
+
+
+def test_v45_responsibility_count_excludes_listed_only_candidates():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Git, Code Reviews, Technical Documentation, Automated Testing",
+        "Experience", "Software Engineer Intern",
+        "• Built a React dashboard for internal users.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Responsibilities:\n"
+        "- Follow software engineering best practices, including version control, testing, and documentation.",
+    )
+    assert result["assessment_coverage"]["responsibility_matches"] == 0
+    assert result["responsibility_matches"] == []
+    assert result["responsibility_listed_evidence"]
+
+
+def test_v45_real_resume_backend_responsibility_prefers_project_over_monitoring_bullet():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Responsibilities:\n- Develop backend services, RESTful APIs, and application components.",
+    )
+    match = result["responsibility_matches"][0]
+    assert "Node.js" in match["resume_excerpt"] or "Express.js" in match["resume_excerpt"]
+
+
+def test_v45_real_resume_database_responsibility_does_not_use_gzip_bullet_as_direct_evidence():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Responsibilities:\n- Work with relational databases and write optimized SQL queries.",
+    )
+    assert result["responsibility_matches"] == []
+
+
+def test_v45_real_resume_collaboration_responsibility_requires_explicit_collaboration_evidence():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Responsibilities:\n- Collaborate with product managers, QA engineers, and other developers.",
+    )
+    assert result["responsibility_matches"] == []
+
+
+def test_v45_real_resume_quality_best_practices_uses_test_validation_not_skills_list():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Responsibilities:\n"
+        "- Follow software engineering best practices, including version control, testing, and documentation.",
+    )
+    assert result["responsibility_matches"]
+    match = result["responsibility_matches"][0]
+    assert match["evidence_status"] == "demonstrated"
+    assert "validating 9/9 p0 scenarios" in match["resume_excerpt"].lower()
+    assert "Engineering Practices:" not in match["resume_excerpt"]
+
+def test_v45_test_automation_skill_split_across_pdf_lines_is_reconstructed():
+    # A continuation line in a skills section must not become a separate skill.
+    parsed = parse_lines([
+        "Alex Doe", "alex@example.com", "Technical Skills",
+        "Core: Data Structures and Algorithms, Object-Oriented Programming, DBMS, Test",
+        "Automation",
+    ])
+    names = {item["canonical_name"] for item in parsed["skills"]}
+    assert "test automation" in names
