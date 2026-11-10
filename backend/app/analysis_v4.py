@@ -448,6 +448,7 @@ def _is_analyzer_payload(value: str) -> bool:
     analyzer_keys = {
         "score", "breakdown", "requirements", "responsibility_matches",
         "skill_matches", "skill_gaps", "assessment_coverage", "version",
+        "quality", "job_match", "resume", "candidate",
     }
     return len(analyzer_keys.intersection(payload.keys())) >= 2
 
@@ -466,9 +467,9 @@ def _clean_job_description(job_description: str) -> Tuple[str, List[str]]:
         if not stripped:
             kept.append(line)
             continue
-        if _is_analyzer_payload(stripped) or (
-            stripped.startswith(("{", "[")) and
-            re.search(r'"(?:score|breakdown|responsibility_matches|skill_matches|assessment_coverage)"\s*:', stripped)
+        if _is_analyzer_payload(stripped) or re.search(
+            r'"(?:score|breakdown|responsibility_matches|skill_matches|assessment_coverage|quality|job_match)"\\s*:',
+            stripped,
         ):
             removed = True
             continue
