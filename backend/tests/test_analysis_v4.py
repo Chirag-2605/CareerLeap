@@ -662,7 +662,7 @@ def test_v45_express_does_not_satisfy_spring_boot_requirement():
         "• Developed backend services using Node.js and Express.js.",
     ])
     result = analyze_job_match_v4(
-        resume, "Required Qualifications:\\n- Spring Boot"
+        resume, "Entry Level Backend Software Engineer\\nRequired Qualifications:\\n- Spring Boot"
     )
     assert "spring boot" in result["missing_required_skills"]
 
