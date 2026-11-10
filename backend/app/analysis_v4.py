@@ -611,7 +611,7 @@ def _responsibility_tokens(value: str) -> Set[str]:
     return {
         RESPONSIBILITY_SYNONYMS.get(token, token)
         for token in raw
-        if token not in RESPONSIBILITY_STOP_WORDS and len(token) > 2
+        if token not in RESPONSIBILITY_STOP_WORDS and (len(token) > 2 or token == "ui")
     }
 
 
