@@ -539,7 +539,7 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
         if generic_language and classification in ("required", "preferred"):
             groups.append({
                 "name": "programming_language",
-                "classification": "required",
+                "classification": "preferred" if classification == "preferred" else "required",
                 "match_rule": "any_language",
                 "source_sentence": text,
                 "line_index": index,
