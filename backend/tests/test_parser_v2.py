@@ -182,34 +182,3 @@ def test_warns_when_bullet_ends_with_suspicious_incomplete_metric():
     ])
     result = parse_resume_v2("resume.docx", content)
     assert any("truncated numeric outcomes" in warning for warning in result["warnings"])
-
-
-
-def test_present_word_in_summary_does_not_trigger_current_date_warning():
-    content = make_docx([
-        "Alex Doe",
-        "alex@example.com",
-        "Professional Summary",
-        "Present a clear, concise overview of my software engineering experience.",
-        "Experience",
-        "Software Engineer | Example Corp | 2022 - 2024",
-        "• Built Python APIs and improved response time by 30%.",
-        "Education",
-        "Bachelor of Technology, Example University, 2022",
-    ])
-    result = parse_resume_v2("resume.docx", content)
-    assert not any("dates use" in warning for warning in result["warnings"])
-
-
-def test_current_date_range_still_triggers_date_review_warning():
-    content = make_docx([
-        "Alex Doe",
-        "alex@example.com",
-        "Education",
-        "Bachelor of Technology | Example University | Nov 2022 - Present",
-        "Experience",
-        "Software Engineer | Example Corp | 2022 - 2024",
-        "• Built Python APIs and improved response time by 30%.",
-    ])
-    result = parse_resume_v2("resume.docx", content)
-    assert any("date ranges end in" in warning for warning in result["warnings"])

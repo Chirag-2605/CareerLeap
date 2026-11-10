@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -437,60 +436,6 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
     return aliases
 
 
-def _is_analyzer_payload(value: Any) -> bool:
-    """Identify serialized analyzer output accidentally supplied as a job description."""
-    if isinstance(value, str):
-        try:
-            payload = json.loads(value)
-        except (TypeError, ValueError):
-            return False
-    else:
-        payload = value
-    if not isinstance(payload, dict):
-        return False
-    analyzer_keys = {
-        "score", "breakdown", "requirements", "responsibility_matches",
-        "skill_matches", "skill_gaps", "assessment_coverage", "version",
-        "quality", "job_match", "resume", "candidate",
-    }
-    return len(analyzer_keys.intersection(payload.keys())) >= 2
-
-
-def _clean_job_description(job_description: str) -> Tuple[str, List[str]]:
-    """Remove analyzer-result JSON objects, including pretty-printed embedded blocks."""
-    raw = str(job_description or "").strip()
-    if _is_analyzer_payload(raw):
-        return "", [
-            "The supplied content is serialized analyzer output, not a readable job description."
-        ]
-
-    decoder = json.JSONDecoder()
-    cursor = 0
-    pieces = []
-    removed = False
-    while True:
-        start = raw.find("{", cursor)
-        if start < 0:
-            break
-        try:
-            payload, consumed = decoder.raw_decode(raw[start:])
-        except (TypeError, ValueError):
-            cursor = start + 1
-            continue
-        if _is_analyzer_payload(payload):
-            pieces.append(raw[cursor:start])
-            cursor = start + consumed
-            removed = True
-        else:
-            cursor = start + 1
-    pieces.append(raw[cursor:])
-    cleaned = "".join(pieces).strip()
-    warnings = (
-        ["Structured analyzer-result content was removed from the job description; review the remaining text."]
-        if removed else []
-    )
-    return cleaned, warnings
-
 def _normalize_jd_lines(job_description: str) -> List[str]:
     """Normalize common Markdown/plain-text JD formatting without discarding content."""
     text = str(job_description or "").replace("\r\n", "\n").replace("\r", "\n")
@@ -548,21 +493,15 @@ def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
             continue
         if re.search(
             r"\b(key\s+)?(responsibilities|what you will do|what you’ll do|"
-            r"what you'll do|what you will be doing|what you'll be doing|"
-            r"what you’ll be doing|what you will work on|what you'll work on|"
-            r"what you will be responsible for|what you'll be responsible for|"
-            r"your role|key duties|duties and responsibilities|role responsibilities|"
-            r"the impact you'll make|the impact you will make)\b",
+            r"what you'll do|your role|key duties|duties and responsibilities|"
+            r"role responsibilities)\b",
             heading,
         ):
             current = "responsibility"
             remainder = re.sub(
                 r"^.*?\b(?:key\s+)?(?:responsibilities|what you will do|"
-                r"what you’ll do|what you'll do|what you will be doing|what you'll be doing|"
-                r"what you’ll be doing|what you will work on|what you'll work on|"
-                r"what you will be responsible for|what you'll be responsible for|"
-                r"your role|key duties|duties and responsibilities|role responsibilities|"
-                r"the impact you'll make|the impact you will make)\b\s*[:\-–—]?\s*",
+                r"what you’ll do|what you'll do|your role|key duties|"
+                r"duties and responsibilities|role responsibilities)\b\s*[:\-–—]?\s*",
                 "", line, flags=re.I,
             ).strip()
             if remainder:
@@ -830,13 +769,9 @@ def _level(text: str) -> Optional[str]:
 
 def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[str, Any]:
     """Fresh job-specific assessment with persistent JD heading context and normalized coverage."""
-    cleaned_job_description, jd_input_warnings = _clean_job_description(job_description)
-    if not cleaned_job_description or len(cleaned_job_description.strip()) < 40:
-        if jd_input_warnings:
-            raise ValueError("The supplied content does not appear to be a readable job description. Paste the actual job posting text.")
+    if not job_description or len(job_description.strip()) < 40:
         raise ValueError("Please provide a job description with at least 40 characters.")
 
-    job_description = cleaned_job_description
     sections = _sections(resume)
     skills = _resume_skill_map(resume)
     jd_skills = _extract_jd_skills(job_description)
@@ -1038,12 +973,9 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     earned = sum(value for _, value, _ in dimensions if value is not None)
     provisional_score = int(round(100.0 * earned / active_weight)) if active_weight else None
     # A role-title/seniority signal alone is too thin to publish as a match
-    # score. Require meaningful coverage across at least two dimensions.
-    minimum_assessed_weight = 35
-    assessed_dimensions = sum(1 for _, value, _ in dimensions if value is not None)
-    score_is_assessable = (
-        active_weight >= minimum_assessed_weight and assessed_dimensions >= 2
-    )
+    # score. Require at least 25 of 90 weighted points to be assessed.
+    minimum_assessed_weight = 25
+    score_is_assessable = active_weight >= minimum_assessed_weight
     score = provisional_score if score_is_assessable else None
     score_status = "assessed" if score_is_assessable else "insufficient_data"
     breakdown = []
@@ -1059,14 +991,6 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         })
 
     findings = []
-    if jd_input_warnings:
-        findings.append(_finding(
-            "job_description_contaminated",
-            "Structured analyzer output was detected in the job description",
-            "high",
-            "Paste the original job posting text rather than a previous analysis result. Re-run the comparison after checking the input.",
-            detail=" ".join(jd_input_warnings),
-        ))
     if not score_is_assessable:
         findings.append(_finding(
             "job_match_insufficient_coverage",
@@ -1119,8 +1043,6 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "score_status": score_status,
         "provisional_score": provisional_score if not score_is_assessable else None,
         "minimum_assessed_weight": minimum_assessed_weight,
-        "assessed_dimensions": assessed_dimensions,
-        "input_warnings": jd_input_warnings,
         "version": MATCH_VERSION,
         "score_method": "normalized_assessed_dimensions",
         "responsibility_method": "domain_gated_concept_retrieval_v2",
