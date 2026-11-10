@@ -42,8 +42,8 @@ def strong_resume():
 def test_quality_v4_is_independent_and_scores_strong_resume_higher():
     weak = analyze_quality_v4(weak_resume())
     strong = analyze_quality_v4(strong_resume())
-    assert weak["version"] == "quality-v4"
-    assert strong["version"] == "quality-v4"
+    assert weak["version"] == "quality-v4.4"
+    assert strong["version"] == "quality-v4.4"
     assert 0 <= weak["score"] < strong["score"] <= 100
     assert sum(item["possible"] for item in strong["breakdown"]) == 100
     assert sum(item["earned"] for item in strong["breakdown"]) == strong["score"]
