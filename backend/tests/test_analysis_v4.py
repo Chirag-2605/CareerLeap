@@ -743,7 +743,7 @@ def test_v45_internship_is_not_penalized_for_entry_level_zero_to_two_year_role()
     result = analyze_job_match_v4(
         dakshta_resume(),
         "Entry Level Software Engineer\nExperience: 0-2 Years\n"
-        "Required Qualifications:\n- Python",
+        "Required Qualifications:\n- Proficiency in Python programming language.",
     )
     assert result["seniority_alignment"]["assessment"] == "aligned"
 
