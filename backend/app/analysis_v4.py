@@ -741,7 +741,8 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
                 )),
                 "evidence_type": "direct" if best_value >= 0.30 else "supporting",
                 "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
-            })    responsibility_score = None
+            })
+    responsibility_score = None
     if responsibility_lines:
         matched_by_line = {item["job_responsibility"]: item["similarity"] for item in responsibility_matches}
         responsibility_score = int(round(25 * sum(
