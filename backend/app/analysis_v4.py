@@ -674,7 +674,7 @@ RESPONSIBILITY_CONCEPT_PATTERNS = {
     ),
     "frontend_development": (r"\b(?:frontend|front-end|ui|interface|dashboard|react|web app|user interface)\b",),
     "backend_development": (r"\b(?:backend|back-end|server-side|endpoint|endpoints|api|apis|node\.js|express(?:\.js)?|fastapi|django|flask|spring boot)\b",),
-    "testing_quality": (r"\b(?:tests?|testing|tested|unit tests?|integration tests?|automated tests?|test cases?|test suites?|validation|validated|p0 scenarios)\b",)
+    "testing_quality": (r"\b(?:tests?|testing|tested|unit tests?|integration tests?|automated tests?|test cases?|test suites?|validation|validated|p0 scenarios)\b",),
     "diagnostics": (r"\b(?:debug|debugging|troubleshoot|troubleshooting|diagnos|diagnosis|root cause|failure analysis|crash|crashes|logs?|log analyzer|error analysis)\b",),
     "automation": (r"\b(?:automat|automation|automated|workflow|workflows|script|scripts|scheduled|orchestrat)\w*\b",),
     "data_persistence": (r"\b(?:database|databases|sql|mysql|postgresql|mongodb|dynamodb|storage|persistence|data store|queries)\b",),
