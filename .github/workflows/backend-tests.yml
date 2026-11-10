@@ -15,7 +15,7 @@ permissions:
 jobs:
   backend-tests:
     name: Python ${{ matrix.python-version }} / pytest
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
