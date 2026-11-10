@@ -432,10 +432,11 @@ def test_v44_dakshta_regression_language_relational_db_sdet_and_real_responsibil
 
     # Duties must retrieve evidence from actual experience/project bullets.
     assert result["assessment_coverage"]["responsibility_statements"] == 8
-    assert result["assessment_coverage"]["responsibility_matches"] >= 5
+    assert result["assessment_coverage"]["responsibility_matches"] >= 3
     assert result["breakdown"][2]["earned"] > 0
     assert all(item["evidence_ids"] for item in result["responsibility_matches"])
-    assert any(item["evidence_type"] == "listed" for item in result["responsibility_matches"])
+    assert all(item["evidence_status"] == "demonstrated" for item in result["responsibility_matches"])
+    assert result["responsibility_listed_evidence"]
 
 
 def test_v44_does_not_treat_related_frameworks_or_api_terms_as_equivalent_skills():
@@ -775,6 +776,8 @@ def test_v45_responsibility_count_excludes_listed_only_candidates():
         "- Follow software engineering best practices, including version control, testing, and documentation.",
     )
     assert result["assessment_coverage"]["responsibility_matches"] == 0
+    assert result["responsibility_matches"] == []
+    assert result["responsibility_listed_evidence"]
 
 
 def test_v45_real_resume_backend_responsibility_prefers_project_over_monitoring_bullet():
