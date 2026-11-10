@@ -608,9 +608,10 @@ RESPONSIBILITY_SYNONYMS = {
 
 def _responsibility_tokens(value: str) -> Set[str]:
     raw = re.findall(r"[a-z][a-z0-9+#.]{1,}", _norm(value))
+    normalized = (token.rstrip(".,;:!?") for token in raw)
     return {
         RESPONSIBILITY_SYNONYMS.get(token, token)
-        for token in raw
+        for token in normalized
         if token not in RESPONSIBILITY_STOP_WORDS and (len(token) > 2 or token == "ui")
     }
 
