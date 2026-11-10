@@ -587,6 +587,41 @@ def _similarity(left: str, right: str) -> float:
     # Dice coefficient penalizes long job descriptions and long resume bullets
     # less aggressively than one-sided token recall.
     return (2.0 * len(a & b)) / float(len(a) + len(b))
+RESPONSIBILITY_STOP_WORDS = STOP_WORDS | {
+    "reliable", "reliability", "scalable", "scale", "clean", "efficient",
+    "maintainable", "application", "applications", "software", "strong",
+    "good", "knowledge", "understanding", "ability", "including",
+}
+RESPONSIBILITY_SYNONYMS = {
+    "built": "develop", "building": "develop", "developed": "develop",
+    "implemented": "develop", "created": "develop", "designed": "design",
+    "maintained": "maintain", "maintaining": "maintain",
+    "api": "endpoint", "apis": "endpoint", "restful": "rest",
+    "service": "backend_component", "services": "backend_component",
+    "module": "backend_component", "modules": "backend_component",
+    "component": "backend_component", "components": "backend_component",
+    "ui": "interface", "frontend": "interface",
+    "query": "database_query", "queries": "database_query", "sql": "database_query",
+}
+
+def _responsibility_tokens(value: str) -> Set[str]:
+    raw = re.findall(r"[a-z][a-z0-9+#.]{1,}", _norm(value))
+    return {
+        RESPONSIBILITY_SYNONYMS.get(token, token)
+        for token in raw
+        if token not in RESPONSIBILITY_STOP_WORDS and len(token) > 2
+    }
+
+
+def _responsibility_similarity(left: str, right: str) -> float:
+    a, b = _responsibility_tokens(left), _responsibility_tokens(right)
+    if not a or not b:
+        return 0.0
+    overlap = len(a & b)
+    # One generic shared word must never qualify as responsibility evidence.
+    if overlap < 2:
+        return 0.0
+    return (2.0 * overlap) / float(len(a) + len(b))
 
 
 def _role(text: str) -> Optional[str]:
@@ -689,22 +724,26 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     responsibility_matches = []
     for line in responsibility_lines:
         ranked = sorted(
-            ((_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
+            ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
             key=lambda pair: pair[0], reverse=True,
         )
-        if ranked and ranked[0][0] >= 0.12:
-            value, bullet = ranked[0]
+        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.14][:2]
+        if relevant:
+            best_value, best_bullet = relevant[0]
             responsibility_matches.append({
                 "job_responsibility": line,
-                "resume_excerpt": bullet["text"],
-                "similarity": round(value, 3),
-                "evidence_ids": bullet["evidence_ids"],
-            })
-    responsibility_score = None
+                "resume_excerpt": best_bullet["text"],
+                "similarity": round(best_value, 3),
+                "evidence_ids": list(dict.fromkeys(
+                    eid for _, bullet in relevant for eid in bullet["evidence_ids"]
+                )),
+                "evidence_type": "direct" if best_value >= 0.30 else "supporting",
+                "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
+            })    responsibility_score = None
     if responsibility_lines:
         matched_by_line = {item["job_responsibility"]: item["similarity"] for item in responsibility_matches}
         responsibility_score = int(round(25 * sum(
-            min(1.0, matched_by_line.get(line, 0.0) / 0.35)
+            min(1.0, matched_by_line.get(line, 0.0) / 0.45)
             for line in responsibility_lines
         ) / len(responsibility_lines)))
 
@@ -723,9 +762,17 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     if candidate_role and target_role:
         role_assessment = "aligned" if candidate_role == target_role else "different_signal"
     if candidate_level and target_level:
+        entry_experience_window = bool(re.search(
+            r"\b0\s*(?:-|–|—|to)\s*2\s*(?:years?|yrs?)\b",
+            _norm(job_description),
+        ))
+        internship_counts_for_entry = (
+            candidate_level == "intern" and target_level == "entry"
+            and entry_experience_window
+        )
         seniority_assessment = (
             "aligned" if LEVEL_RANK[candidate_level] >= LEVEL_RANK[target_level]
-            else "below_target_signal"
+            or internship_counts_for_entry else "below_target_signal"
         )
     assessed_role_signals = []
     if candidate_role and target_role:
