@@ -605,9 +605,17 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
             if group_name == "relational databases":
                 grouped_line_names.add((line_index, "relational databases"))
 
+    has_preferred_language_group = any(
+        item["name"] == "preferred_programming_language" for item in groups
+    )
     individual = [
         value for key, value in found.items()
         if (value["line_index"], key) not in grouped_line_names
+        and not (
+            has_preferred_language_group
+            and key in ("java", "kotlin")
+            and value["classification"] == "preferred"
+        )
     ]
     return sorted(individual + groups, key=lambda item: (item["name"], item["line_index"]))
 
@@ -838,7 +846,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
             ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
             key=lambda pair: pair[0], reverse=True,
         )
-        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.24][:2]
+        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.18][:2]
         if relevant:
             best_value, best_bullet = relevant[0]
             matched_concepts = sorted(
