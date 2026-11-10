@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .parser_v2 import SKILL_GROUPS
 
-QUALITY_VERSION = "quality-v4"
-MATCH_VERSION = "match-v4"
+QUALITY_VERSION = "quality-v4.4"
+MATCH_VERSION = "match-v4.4"
 
 WEIGHTS = {
     "evidence_quality": 25,
@@ -59,7 +59,12 @@ PREFERRED_CUES = (
     r"\bdesired\b", r"\bgood to have\b", r"\bplus\b",
 )
 ROLE_TERMS = {
-    "software_engineering": ("software engineer", "software developer", "backend", "frontend", "full stack", "fullstack", "developer", "engineering"),
+    "software_engineering": (
+        "software engineer", "software development engineer", "software developer",
+        "software development engineer in test", "sdet", "test automation engineer",
+        "qa automation engineer", "backend", "frontend", "full stack", "fullstack",
+        "developer", "engineering",
+    ),
     "data": ("data scientist", "data analyst", "analytics", "business intelligence", "data engineer"),
     "machine_learning": ("machine learning", " ml engineer", " ai engineer", "artificial intelligence"),
     "design": ("product designer", "ux designer", "ui designer", "user experience"),
@@ -74,6 +79,12 @@ LEVEL_TERMS = {
     "lead": ("staff", "principal", "lead", "director", "architect"),
 }
 LEVEL_RANK = {"intern": 0, "entry": 1, "mid": 2, "senior": 3, "lead": 4}
+
+PROGRAMMING_LANGUAGE_SKILLS = (
+    "c++", "c#", "java", "kotlin", "python", "javascript", "typescript",
+    "go", "rust", "ruby", "php", "swift",
+)
+RELATIONAL_DATABASE_SKILLS = ("postgresql", "mysql")
 
 
 def _norm(value: str) -> str:
@@ -102,11 +113,12 @@ def _item_ids(item: Dict[str, Any]) -> List[str]:
 
 
 def _bullets(sections: Dict[str, List[Dict[str, Any]]], kinds: Tuple[str, ...]) -> List[Dict[str, Any]]:
+    """Return achievement bullets only; headings and role metadata are context, not achievements."""
     output = []
     for kind in kinds:
         for item in sections.get(kind, []):
             text = _item_text(item)
-            if text and (item.get("kind") == "bullet" or len(text.split()) >= 7):
+            if text and item.get("kind") == "bullet":
                 output.append({"section": kind, "text": text, "evidence_ids": _item_ids(item)})
     return output
 
@@ -501,10 +513,13 @@ def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
     return output
 
 def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
-    """Extract canonical skills and collapse explicit OR phrases into one requirement."""
+    """Extract normalized requirements while preserving AND/OR and preference semantics."""
     aliases = _skill_aliases()
     found: Dict[str, Dict[str, Any]] = {}
     lines = _extract_jd_lines(job_description)
+    groups: List[Dict[str, Any]] = []
+    grouped_line_names = set()
+
     for index, item in enumerate(lines):
         text = item["text"]
         lowered = _norm(text)
@@ -516,25 +531,49 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                 classification = "preferred"
             else:
                 classification = "not_assessed"
-        for canonical, values in aliases.items():
-            if any(_has(lowered, alias) for alias in values):
-                priority = {"not_assessed": 0, "preferred": 1, "required": 2}
-                previous = found.get(canonical)
-                if previous and priority[previous["classification"]] >= priority[classification]:
-                    continue
-                found[canonical] = {
-                    "name": canonical, "classification": classification,
-                    "source_sentence": text, "line_index": index,
-                }
 
-    # Collapse only explicit "A or B" alternatives from the same JD line.
+        generic_language = bool(re.search(
+            r"\b(?:at\s+least\s+one|one|a)\s+(?:programming|coding)\s+languages?\b",
+            lowered,
+        ))
+        if generic_language and classification in ("required", "preferred"):
+            groups.append({
+                "name": "programming_language",
+                "classification": "required",
+                "match_rule": "any_language",
+                "source_sentence": text,
+                "line_index": index,
+            })
+            if re.search(r"\bpreferably\b", lowered):
+                groups.append({
+                    "name": "preferred_programming_language",
+                    "classification": "preferred",
+                    "alternatives": ["java", "kotlin"],
+                    "match_rule": "any",
+                    "source_sentence": text,
+                    "line_index": index,
+                })
+                grouped_line_names.update(((index, "java"), (index, "kotlin")))
+
+        for canonical, values in aliases.items():
+            if not any(_has(lowered, alias) for alias in values):
+                continue
+            if generic_language and canonical in ("java", "kotlin") and re.search(r"\bpreferably\b", lowered):
+                continue
+            priority = {"not_assessed": 0, "preferred": 1, "required": 2}
+            previous = found.get(canonical)
+            if previous and priority[previous["classification"]] >= priority[classification]:
+                continue
+            found[canonical] = {
+                "name": canonical, "classification": classification,
+                "source_sentence": text, "line_index": index,
+            }
+
     alternative_patterns = (
-        ("programming_language", ("java", "kotlin")),
         ("database", ("postgresql", "mysql")),
         ("build_tool", ("gradle", "maven")),
+        ("programming_language", ("java", "kotlin")),
     )
-    groups = []
-    grouped_line_names = set()
     for line_index, line in enumerate(lines):
         lowered = _norm(line["text"])
         for group_name, alternatives in alternative_patterns:
@@ -542,25 +581,44 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
             pattern = r"\b" + re.escape(left) + r"\b\s+or\s+\b" + re.escape(right) + r"\b"
             if not re.search(pattern, lowered):
                 continue
+            if group_name == "programming_language" and re.search(
+                r"\b(?:at\s+least\s+one|one|a)\s+(?:programming|coding)\s+languages?\b",
+                lowered,
+            ):
+                continue
             classification = line["classification"]
             if classification not in ("required", "preferred"):
                 if any(re.search(cue, lowered) for cue in REQUIRED_CUES):
                     classification = "required"
                 elif any(re.search(cue, lowered) for cue in PREFERRED_CUES):
                     classification = "preferred"
-            if classification in ("required", "preferred"):
-                groups.append({
-                    "name": group_name, "classification": classification,
-                    "alternatives": list(alternatives), "match_rule": "any",
-                    "source_sentence": line["text"], "line_index": line_index,
-                })
-                grouped_line_names.add((line_index, left))
-                grouped_line_names.add((line_index, right))
+            if classification not in ("required", "preferred"):
+                continue
+            if group_name == "database" and re.search(r"\brelational\s+databases?\b", lowered):
+                group_name = "relational databases"
+            groups.append({
+                "name": group_name, "classification": classification,
+                "alternatives": list(alternatives), "match_rule": "any",
+                "source_sentence": line["text"], "line_index": line_index,
+            })
+            grouped_line_names.update(((line_index, left), (line_index, right)))
+            if group_name == "relational databases":
+                grouped_line_names.add((line_index, "relational databases"))
+
+    has_preferred_language_group = any(
+        item["name"] == "preferred_programming_language" for item in groups
+    )
     individual = [
         value for key, value in found.items()
         if (value["line_index"], key) not in grouped_line_names
+        and not (
+            has_preferred_language_group
+            and key in ("java", "kotlin")
+            and value["classification"] == "preferred"
+        )
     ]
-    return sorted(individual + groups, key=lambda item: item["name"])
+    return sorted(individual + groups, key=lambda item: (item["name"], item["line_index"]))
+
 
 def _resume_skill_map(resume: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
     result = {}
@@ -589,42 +647,88 @@ def _similarity(left: str, right: str) -> float:
     return (2.0 * len(a & b)) / float(len(a) + len(b))
 RESPONSIBILITY_STOP_WORDS = STOP_WORDS | {
     "reliable", "reliability", "scalable", "scale", "clean", "efficient",
-    "maintainable", "software", "strong",
-    "good", "knowledge", "understanding", "ability", "including",
+    "maintainable", "software", "strong", "good", "knowledge",
+    "understanding", "ability", "including", "new", "other",
 }
 RESPONSIBILITY_SYNONYMS = {
     "built": "build_action", "building": "build_action", "developed": "build_action",
-    "develop": "build_action", "implemented": "build_action", "created": "build_action",
-    "designed": "build_action", "design": "build_action",
-    "maintained": "maintain", "maintaining": "maintain",
+    "develop": "build_action", "developing": "build_action", "implemented": "build_action",
+    "implement": "build_action", "created": "build_action", "creating": "build_action",
+    "designed": "build_action", "design": "build_action", "engineered": "build_action",
+    "delivered": "build_action", "deliver": "build_action",
+    "maintained": "maintain", "maintaining": "maintain", "maintain": "maintain",
     "api": "endpoint", "apis": "endpoint", "restful": "rest",
     "service": "software_artifact", "services": "software_artifact",
     "module": "software_artifact", "modules": "software_artifact",
     "component": "software_artifact", "components": "software_artifact",
     "application": "software_artifact", "applications": "software_artifact",
-    "ui": "software_artifact", "frontend": "software_artifact",
+    "platform": "software_artifact", "dashboard": "software_artifact",
+    "tool": "software_artifact", "tools": "software_artifact",
     "query": "database_query", "queries": "database_query", "sql": "database_query",
 }
+RESPONSIBILITY_CONCEPT_PATTERNS = {
+    "software_delivery": (
+        r"\b(?:build|built|develop|developed|design|designed|implement|implemented|engineered|create|created|deliver|delivered)\b",
+        r"\b(?:software|application|applications|app|system|systems|dashboard|platform|service|services|module|modules|component|components|tool|tools|api|apis|code)\b",
+    ),
+    "frontend_development": (r"\b(?:frontend|front-end|ui|interface|dashboard|react|web app|user interface)\b",),
+    "backend_development": (r"\b(?:backend|back-end|server|servers|endpoint|endpoints|api|apis|node\.js|express)\b",),
+    "testing_quality": (r"\b(?:test|tests|testing|qa|quality assurance|validation|validated|p0 scenarios|automated testing)\b",),
+    "diagnostics": (r"\b(?:debug|debugging|troubleshoot|troubleshooting|diagnos|diagnosis|root cause|failure analysis|crash|crashes|logs?|log analyzer|error analysis)\b",),
+    "automation": (r"\b(?:automat|automation|automated|workflow|workflows|script|scripts|scheduled|orchestrat)\w*\b",),
+    "data_persistence": (r"\b(?:database|databases|sql|mysql|postgresql|mongodb|dynamodb|storage|persistence|data store|queries)\b",),
+    "cloud_infrastructure": (r"\b(?:aws|cloud|ssm|s3|bedrock|lambda|infrastructure|deploy|deployed|deployment|server|servers|iam)\b",),
+    "monitoring_operations": (r"\b(?:monitor|monitoring|monitored|alert|alerts|notification|notifications|compliance|status checks?|health checks?|offline-server)\b",),
+    "performance_improvement": (r"\b(?:performance|latency|throughput|optimi[sz]|reduced|reducing|improv|accelerat|eliminat|streamlin|hours?|minutes?)\w*\b",),
+    "collaboration": (r"\b(?:collaborat|cross-functional|stakeholders?|teams?|sub-teams?|product managers?|qa engineers?|developers?)\w*\b",),
+    "code_quality": (
+        r"\b(?:code reviews?|code quality|best practices|clean code|maintainable code|refactor|coding standards)\b",
+        r"\b(?:clean|efficient|maintainable)\b.{0,50}\bcode\b",
+    ),
+    "version_control": (r"\b(?:git|version control|source control)\b",),
+    "documentation": (r"\b(?:documentation|documenting|technical docs|readme)\b",),
+    "security_auth": (r"\b(?:authentication|authorization|oauth|jwt|security|access control)\b",),
+    "real_time_systems": (r"\b(?:real[- ]time|websocket|socket\.io|webrtc|live messaging)\b",),
+    "process_improvement": (r"\b(?:process improvement|engineering processes|manual effort|manual checks|manual reproduction|manual collection|intervention|efficiency)\b",),
+    "database_optimization": (r"\b(?:indexing|optimized sql|query optimization|query performance|database design|joins)\b",),
+}
+
+def _responsibility_concepts(value: str) -> Set[str]:
+    lowered = _norm(value)
+    concepts = set()
+    for concept, patterns in RESPONSIBILITY_CONCEPT_PATTERNS.items():
+        if concept == "software_delivery":
+            if re.search(patterns[0], lowered) and re.search(patterns[1], lowered):
+                concepts.add(concept)
+        elif any(re.search(pattern, lowered) for pattern in patterns):
+            concepts.add(concept)
+    return concepts
+
 
 def _responsibility_tokens(value: str) -> Set[str]:
     raw = re.findall(r"[a-z][a-z0-9+#.]{1,}", _norm(value))
-    normalized = (token.rstrip(".,;:!?") for token in raw)
-    return {
-        RESPONSIBILITY_SYNONYMS.get(token, token)
-        for token in normalized
-        if token not in RESPONSIBILITY_STOP_WORDS and (len(token) > 2 or token == "ui")
-    }
+    output = set()
+    for raw_token in raw:
+        token = raw_token.rstrip(".,;:!?")
+        if token in RESPONSIBILITY_STOP_WORDS or len(token) <= 2:
+            continue
+        output.add(RESPONSIBILITY_SYNONYMS.get(token, token))
+    return output
 
 
 def _responsibility_similarity(left: str, right: str) -> float:
-    a, b = _responsibility_tokens(left), _responsibility_tokens(right)
-    if not a or not b:
+    """Asymmetric retrieval score: cover JD concepts while tolerating richer resume bullets."""
+    required = _responsibility_concepts(left)
+    evidence = _responsibility_concepts(right)
+    if not required or not evidence:
         return 0.0
-    overlap = len(a & b)
-    # One generic shared word must never qualify as responsibility evidence.
-    if overlap < 2:
+    shared = required & evidence
+    if not shared:
         return 0.0
-    return (2.0 * overlap) / float(len(a) + len(b))
+    concept_recall = len(shared) / float(len(required))
+    left_tokens, right_tokens = _responsibility_tokens(left), _responsibility_tokens(right)
+    lexical = len(left_tokens & right_tokens) / float(len(left_tokens)) if left_tokens else 0.0
+    return min(1.0, 0.82 * concept_recall + 0.18 * lexical)
 
 
 def _role(text: str) -> Optional[str]:
@@ -653,6 +757,16 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     skills = _resume_skill_map(resume)
     jd_skills = _extract_jd_skills(job_description)
     resume_bullets = _bullets(sections, ("experience", "projects", "leadership", "volunteer"))
+    # Skills-section mentions may support a duty, but remain explicitly listed-only
+    # evidence and receive less weight than demonstrated experience/project bullets.
+    resume_evidence = list(resume_bullets)
+    for item in sections.get("skills", []):
+        text = _item_text(item)
+        if text:
+            resume_evidence.append({
+                "section": "skills", "text": text,
+                "evidence_ids": _item_ids(item), "provenance": "listed",
+            })
     required = [item for item in jd_skills if item["classification"] == "required"]
     preferred = [item for item in jd_skills if item["classification"] == "preferred"]
     informational = [item for item in jd_skills if item["classification"] == "not_assessed"]
@@ -662,6 +776,10 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     aliases_by_name = _skill_aliases()
     for requirement in required + preferred:
         names = requirement.get("alternatives") or [requirement["name"]]
+        if requirement.get("match_rule") == "any_language":
+            names = list(PROGRAMMING_LANGUAGE_SKILLS)
+        elif requirement["name"] == "relational databases" and not requirement.get("alternatives"):
+            names = list(RELATIONAL_DATABASE_SKILLS)
         alternative_results = []
         for name in names:
             evidence = skills.get(name, {})
@@ -690,10 +808,10 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
             )),
             "job_description_excerpt": requirement["source_sentence"],
         }
-        if requirement.get("alternatives"):
+        if requirement.get("alternatives") or requirement.get("match_rule") == "any_language":
             detail["alternatives"] = list(names)
             detail["matched_alternatives"] = [item["name"] for item in matched]
-            detail["match_rule"] = "any"
+            detail["match_rule"] = requirement.get("match_rule", "any")
         if status == "not_found":
             skill_gaps.append(detail)
         else:
@@ -714,40 +832,66 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
 
     # Keep all job responsibility lines, including those that mention skills.
     jd_lines = _extract_jd_lines(job_description)
-    responsibility_lines = [
-        item["text"] for item in jd_lines
-        if item["classification"] == "responsibility"
-        or re.search(r"\b(you will|responsibilities include|responsible for|build|develop|"
-                     r"design|implement|maintain|manage|analy[sz]e|deliver|own|lead|"
-                     r"collaborate|support|architect|optimize)\b", item["text"], re.I)
+    explicit_responsibilities = [
+        item["text"] for item in jd_lines if item["classification"] == "responsibility"
     ]
+    if explicit_responsibilities:
+        responsibility_lines = explicit_responsibilities
+    else:
+        # Infer duties only when no dedicated responsibilities heading exists;
+        # qualification bullets must never leak into this dimension.
+        responsibility_lines = [
+            item["text"] for item in jd_lines
+            if item["classification"] == "not_assessed"
+            and re.search(
+                r"\b(you will|responsibilities include|responsible for|build|develop|"
+                r"design|implement|maintain|manage|analy[sz]e|deliver|own|lead|"
+                r"collaborate|support|architect|optimize|debug|test|automate)\b",
+                item["text"], re.I,
+            )
+        ]
     responsibility_lines = list(dict.fromkeys(
-        line for line in responsibility_lines if len(_tokens(line)) >= 4
+        line for line in responsibility_lines if len(_tokens(line)) >= 3
     ))
     responsibility_matches = []
     for line in responsibility_lines:
-        ranked = sorted(
-            ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
-            key=lambda pair: pair[0], reverse=True,
-        )
-        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.14][:2]
+        ranked = []
+        for evidence in resume_evidence:
+            raw_similarity = _responsibility_similarity(line, evidence["text"])
+            is_listed = evidence.get("provenance") == "listed"
+            adjusted_similarity = raw_similarity * (0.35 if is_listed else 1.0)
+            ranked.append((adjusted_similarity, evidence))
+        ranked.sort(key=lambda pair: pair[0], reverse=True)
+        relevant = [(value, evidence) for value, evidence in ranked if value >= 0.18][:2]
         if relevant:
             best_value, best_bullet = relevant[0]
+            matched_concepts = sorted(
+                _responsibility_concepts(line) & _responsibility_concepts(best_bullet["text"])
+            )
+            is_listed_evidence = best_bullet.get("provenance") == "listed"
             responsibility_matches.append({
                 "job_responsibility": line,
                 "resume_excerpt": best_bullet["text"],
                 "similarity": round(best_value, 3),
+                "matched_concepts": matched_concepts,
                 "evidence_ids": list(dict.fromkeys(
-                    eid for _, bullet in relevant for eid in bullet["evidence_ids"]
+                    eid for _, evidence in relevant for eid in evidence["evidence_ids"]
                 )),
-                "evidence_type": "direct" if len((_tokens(line) & _tokens(best_bullet["text"])) - RESPONSIBILITY_STOP_WORDS) >= 2 else "supporting",
-                "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
+                "evidence_type": (
+                    "listed" if is_listed_evidence else
+                    "direct" if best_value >= 0.48 and len(matched_concepts) >= 2 else
+                    "supporting"
+                ),
+                "evidence_status": "listed" if is_listed_evidence else "demonstrated",
+                "supporting_excerpts": [evidence["text"] for _, evidence in relevant[1:]],
             })
     responsibility_score = None
     if responsibility_lines:
-        matched_by_line = {item["job_responsibility"]: item["similarity"] for item in responsibility_matches}
+        matched_by_line = {
+            item["job_responsibility"]: item["similarity"] for item in responsibility_matches
+        }
         responsibility_score = int(round(25 * sum(
-            min(1.0, matched_by_line.get(line, 0.0) / 0.45)
+            min(1.0, matched_by_line.get(line, 0.0) / 0.62)
             for line in responsibility_lines
         ) / len(responsibility_lines)))
 
@@ -870,6 +1014,8 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "minimum_assessed_weight": minimum_assessed_weight,
         "version": MATCH_VERSION,
         "score_method": "normalized_assessed_dimensions",
+        "responsibility_method": "weighted_concept_retrieval_v1",
+        "skill_requirement_method": "taxonomy_provenance_and_alternatives",
         "assessment_coverage": {
             "assessed_weight": active_weight,
             "available_weight": 90,
@@ -891,6 +1037,12 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "responsibility_matches": responsibility_matches,
         "role_alignment": {
             "candidate_family": candidate_role, "target_family": target_role,
+            "candidate_specialization": (
+                "quality_engineering" if re.search(
+                    r"\b(?:sdet|software development engineer in test|test automation|qa automation)\b",
+                    _norm(title_text),
+                ) else None
+            ),
             "assessment": role_assessment,
         },
         "seniority_alignment": {
@@ -909,5 +1061,5 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
                 len(required), len(preferred),
             )
         ),
-        "disclaimer": "A deterministic evidence-based estimate. Responsibility matching uses lexical overlap, not semantic embeddings or an employer ATS ranking.",
+        "disclaimer": "A deterministic evidence-based estimate using explicit skill provenance and concept-aware responsibility retrieval; it is not an employer ATS ranking.",
     }
