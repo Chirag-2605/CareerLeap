@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .parser_v2 import SKILL_GROUPS
 
-QUALITY_VERSION = "quality-v4.4"
-MATCH_VERSION = "match-v4.4"
+QUALITY_VERSION = "quality-v4.5"
+MATCH_VERSION = "match-v4.5"
 
 WEIGHTS = {
     "evidence_quality": 25,
@@ -425,6 +425,7 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
         "database design": ("database design",),
         "indexing": ("indexing", "database indexing"),
         "query optimization": ("query optimization", "sql optimization"),
+        "joins": ("joins", "sql joins", "database joins"),
         "concurrency": ("concurrency", "multithreading", "multi-threading"),
         "distributed systems": ("distributed systems",),
         "gradle": ("gradle",),
@@ -533,7 +534,7 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                 classification = "not_assessed"
 
         generic_language = bool(re.search(
-            r"\b(?:at\s+least\s+one|one|a)\s+(?:programming|coding)\s+languages?\b",
+            r"\b(?:at\s+least\s+one|one|a|any)\s+(?:programming|coding)\s+languages?\b",
             lowered,
         ))
         if generic_language and classification in ("required", "preferred"):
@@ -582,7 +583,7 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
             if not re.search(pattern, lowered):
                 continue
             if group_name == "programming_language" and re.search(
-                r"\b(?:at\s+least\s+one|one|a)\s+(?:programming|coding)\s+languages?\b",
+                r"\b(?:at\s+least\s+one|one|a|any)\s+(?:programming|coding)\s+languages?\b",
                 lowered,
             ):
                 continue
@@ -672,15 +673,15 @@ RESPONSIBILITY_CONCEPT_PATTERNS = {
         r"\b(?:software|application|applications|app|system|systems|dashboard|platform|service|services|module|modules|component|components|tool|tools|api|apis|code)\b",
     ),
     "frontend_development": (r"\b(?:frontend|front-end|ui|interface|dashboard|react|web app|user interface)\b",),
-    "backend_development": (r"\b(?:backend|back-end|server|servers|endpoint|endpoints|api|apis|node\.js|express)\b",),
-    "testing_quality": (r"\b(?:test|tests|testing|qa|quality assurance|validation|validated|p0 scenarios|automated testing)\b",),
+    "backend_development": (r"\b(?:backend|back-end|server-side|endpoint|endpoints|api|apis|node\.js|express(?:\.js)?|fastapi|django|flask|spring boot)\b",),
+    "testing_quality": (r"\b(?:tests?|testing|tested|unit tests?|integration tests?|automated tests?|test cases?|test suites?|validation|validated|p0 scenarios)\b",)
     "diagnostics": (r"\b(?:debug|debugging|troubleshoot|troubleshooting|diagnos|diagnosis|root cause|failure analysis|crash|crashes|logs?|log analyzer|error analysis)\b",),
     "automation": (r"\b(?:automat|automation|automated|workflow|workflows|script|scripts|scheduled|orchestrat)\w*\b",),
     "data_persistence": (r"\b(?:database|databases|sql|mysql|postgresql|mongodb|dynamodb|storage|persistence|data store|queries)\b",),
     "cloud_infrastructure": (r"\b(?:aws|cloud|ssm|s3|bedrock|lambda|infrastructure|deploy|deployed|deployment|server|servers|iam)\b",),
     "monitoring_operations": (r"\b(?:monitor|monitoring|monitored|alert|alerts|notification|notifications|compliance|status checks?|health checks?|offline-server)\b",),
     "performance_improvement": (r"\b(?:performance|latency|throughput|optimi[sz]|reduced|reducing|improv|accelerat|eliminat|streamlin|hours?|minutes?)\w*\b",),
-    "collaboration": (r"\b(?:collaborat|cross-functional|stakeholders?|teams?|sub-teams?|product managers?|qa engineers?|developers?)\w*\b",),
+    "collaboration": (r"\b(?:collaborat\w*|partnered with|coordinated with|worked with|liaised with|cross-functional)\b",),
     "code_quality": (
         r"\b(?:code reviews?|code quality|best practices|clean code|maintainable code|refactor|coding standards)\b",
         r"\b(?:clean|efficient|maintainable)\b.{0,50}\bcode\b",
@@ -690,7 +691,11 @@ RESPONSIBILITY_CONCEPT_PATTERNS = {
     "security_auth": (r"\b(?:authentication|authorization|oauth|jwt|security|access control)\b",),
     "real_time_systems": (r"\b(?:real[- ]time|websocket|socket\.io|webrtc|live messaging)\b",),
     "process_improvement": (r"\b(?:process improvement|engineering processes|manual effort|manual checks|manual reproduction|manual collection|intervention|efficiency)\b",),
-    "database_optimization": (r"\b(?:indexing|optimized sql|query optimization|query performance|database design|joins)\b",),
+    "database_optimization": (
+        r"\b(?:index(?:es|ing)?|indexed|optimi[sz]\w*\s+(?:\w+\s+){0,2}(?:sql\s+)?quer(?:y|ies)|"
+        r"(?:sql\s+)?quer(?:y|ies)\s+(?:performance|optimization|optimisation)|"
+        r"database\s+(?:design|index(?:es|ing)?|optimization|optimisation)|sql\s+joins?|joins?)\b",
+    ),
 }
 
 def _responsibility_concepts(value: str) -> Set[str]:
@@ -724,6 +729,17 @@ def _responsibility_similarity(left: str, right: str) -> float:
         return 0.0
     shared = required & evidence
     if not shared:
+        return 0.0
+    # Domain-specific duties require matching domain-specific evidence. Generic
+    # performance, delivery, or audience terms cannot substitute for SQL tuning,
+    # backend implementation, testing, collaboration, or engineering practices.
+    evidence_gates = {
+        "backend_development", "testing_quality", "database_optimization",
+        "collaboration", "code_quality", "version_control", "documentation",
+        "security_auth", "real_time_systems",
+    }
+    required_gates = required & evidence_gates
+    if required_gates and not (required_gates & evidence):
         return 0.0
     concept_recall = len(shared) / float(len(required))
     left_tokens, right_tokens = _responsibility_tokens(left), _responsibility_tokens(right)
@@ -854,36 +870,48 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         line for line in responsibility_lines if len(_tokens(line)) >= 3
     ))
     responsibility_matches = []
+    responsibility_listed_evidence = []
     for line in responsibility_lines:
         ranked = []
         for evidence in resume_evidence:
             raw_similarity = _responsibility_similarity(line, evidence["text"])
             is_listed = evidence.get("provenance") == "listed"
-            adjusted_similarity = raw_similarity * (0.35 if is_listed else 1.0)
-            ranked.append((adjusted_similarity, evidence))
-        ranked.sort(key=lambda pair: pair[0], reverse=True)
-        relevant = [(value, evidence) for value, evidence in ranked if value >= 0.18][:2]
-        if relevant:
-            best_value, best_bullet = relevant[0]
+            ranked.append((raw_similarity, evidence, is_listed))
+        ranked.sort(key=lambda item: item[0], reverse=True)
+        demonstrated = [(value, evidence) for value, evidence, listed in ranked
+                        if not listed and value >= 0.18][:2]
+        listed = [(value, evidence) for value, evidence, is_listed in ranked
+                  if is_listed and value >= 0.18][:2]
+        if listed:
+            listed_value, listed_item = listed[0]
+            responsibility_listed_evidence.append({
+                "job_responsibility": line,
+                "resume_excerpt": listed_item["text"],
+                "similarity": round(listed_value, 3),
+                "evidence_ids": list(listed_item["evidence_ids"]),
+                "evidence_status": "listed",
+            })
+        if demonstrated:
+            best_value, best_bullet = demonstrated[0]
             matched_concepts = sorted(
                 _responsibility_concepts(line) & _responsibility_concepts(best_bullet["text"])
             )
-            is_listed_evidence = best_bullet.get("provenance") == "listed"
+            primary_ids = list(dict.fromkeys(best_bullet["evidence_ids"]))
             responsibility_matches.append({
                 "job_responsibility": line,
                 "resume_excerpt": best_bullet["text"],
                 "similarity": round(best_value, 3),
                 "matched_concepts": matched_concepts,
+                "primary_evidence_ids": primary_ids,
                 "evidence_ids": list(dict.fromkeys(
-                    eid for _, evidence in relevant for eid in evidence["evidence_ids"]
+                    eid for _, evidence in demonstrated for eid in evidence["evidence_ids"]
                 )),
                 "evidence_type": (
-                    "listed" if is_listed_evidence else
                     "direct" if best_value >= 0.48 and len(matched_concepts) >= 2 else
                     "supporting"
                 ),
-                "evidence_status": "listed" if is_listed_evidence else "demonstrated",
-                "supporting_excerpts": [evidence["text"] for _, evidence in relevant[1:]],
+                "evidence_status": "demonstrated",
+                "supporting_excerpts": [evidence["text"] for _, evidence in demonstrated[1:]],
             })
     responsibility_score = None
     if responsibility_lines:
@@ -1014,7 +1042,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "minimum_assessed_weight": minimum_assessed_weight,
         "version": MATCH_VERSION,
         "score_method": "normalized_assessed_dimensions",
-        "responsibility_method": "weighted_concept_retrieval_v1",
+        "responsibility_method": "domain_gated_concept_retrieval_v2",
         "skill_requirement_method": "taxonomy_provenance_and_alternatives",
         "assessment_coverage": {
             "assessed_weight": active_weight,
@@ -1035,6 +1063,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "skill_matches": skill_matches,
         "skill_gaps": skill_gaps,
         "responsibility_matches": responsibility_matches,
+        "responsibility_listed_evidence": responsibility_listed_evidence,
         "role_alignment": {
             "candidate_family": candidate_role, "target_family": target_role,
             "candidate_specialization": (
