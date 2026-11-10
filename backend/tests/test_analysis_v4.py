@@ -896,14 +896,14 @@ def test_v45_removes_pretty_printed_analyzer_json_embedded_in_jd():
     from app.analysis_v4 import _clean_job_description
 
     raw = (
-        "Software Engineer\\nResponsibilities:\\n"
-        "- Build and maintain backend services.\\n"
-        "{\\n"
-        '  "quality": {"score": 73},\\n'
-        '  "job_match": {"score": 25},\\n'
-        '  "resume": {"candidate": {"name": "Sample"}}\\n'
-        "}\\n"
-        "Required Qualifications:\\n- Python"
+        "Software Engineer\nResponsibilities:\n"
+        "- Build and maintain backend services.\n"
+        "{\n"
+        '  "quality": {"score": 73},\n'
+        '  "job_match": {"score": 25},\n'
+        '  "resume": {"candidate": {"name": "Sample"}}\n'
+        "}\n"
+        "Required Qualifications:\n- Python"
     )
     cleaned, warnings = _clean_job_description(raw)
     assert "Build and maintain backend services." in cleaned
