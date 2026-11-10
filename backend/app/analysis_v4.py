@@ -405,8 +405,9 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
         "mongodb": ("mongodb", "mongo db"),
         "machine learning": ("machine learning", "ml"),
         "scikit-learn": ("scikit-learn", "sklearn"),
-        "data structures and algorithms": ("data structures and algorithms", "data structures", "algorithms"),
-        "object-oriented programming": ("object-oriented programming", "object oriented programming", "oop"),
+        "data structures and algorithms": ("data structures and algorithms", "data structures & algorithms", "data structures", "algorithms", "dsa"),
+        "object-oriented programming": ("object-oriented programming", "object oriented programming", "object-oriented design", "object oriented design", "oop", "ood"),
+        "api development": ("api development", "api design", "api implementation"),
         "http": ("http", "http protocols"),
         "relational databases": ("relational databases", "relational database"),
         "database design": ("database design",),
@@ -500,6 +501,7 @@ def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
     return output
 
 def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
+    """Extract canonical skills and collapse explicit OR phrases into one requirement."""
     aliases = _skill_aliases()
     found: Dict[str, Dict[str, Any]] = {}
     lines = _extract_jd_lines(job_description)
@@ -524,8 +526,41 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                     "name": canonical, "classification": classification,
                     "source_sentence": text, "line_index": index,
                 }
-    return sorted(found.values(), key=lambda item: item["name"])
 
+    # Collapse only explicit "A or B" alternatives from the same JD line.
+    alternative_patterns = (
+        ("programming_language", ("java", "kotlin")),
+        ("database", ("postgresql", "mysql")),
+        ("build_tool", ("gradle", "maven")),
+    )
+    groups = []
+    grouped_line_names = set()
+    for line_index, line in enumerate(lines):
+        lowered = _norm(line["text"])
+        for group_name, alternatives in alternative_patterns:
+            left, right = alternatives
+            pattern = r"\b" + re.escape(left) + r"\b\s+or\s+\b" + re.escape(right) + r"\b"
+            if not re.search(pattern, lowered):
+                continue
+            classification = line["classification"]
+            if classification not in ("required", "preferred"):
+                if any(re.search(cue, lowered) for cue in REQUIRED_CUES):
+                    classification = "required"
+                elif any(re.search(cue, lowered) for cue in PREFERRED_CUES):
+                    classification = "preferred"
+            if classification in ("required", "preferred"):
+                groups.append({
+                    "name": group_name, "classification": classification,
+                    "alternatives": list(alternatives), "match_rule": "any",
+                    "source_sentence": line["text"], "line_index": line_index,
+                })
+                grouped_line_names.add((line_index, left))
+                grouped_line_names.add((line_index, right))
+    individual = [
+        value for key, value in found.items()
+        if (value["line_index"], key) not in grouped_line_names
+    ]
+    return sorted(individual + groups, key=lambda item: item["name"])
 
 def _resume_skill_map(resume: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
     result = {}
@@ -552,6 +587,44 @@ def _similarity(left: str, right: str) -> float:
     # Dice coefficient penalizes long job descriptions and long resume bullets
     # less aggressively than one-sided token recall.
     return (2.0 * len(a & b)) / float(len(a) + len(b))
+RESPONSIBILITY_STOP_WORDS = STOP_WORDS | {
+    "reliable", "reliability", "scalable", "scale", "clean", "efficient",
+    "maintainable", "software", "strong",
+    "good", "knowledge", "understanding", "ability", "including",
+}
+RESPONSIBILITY_SYNONYMS = {
+    "built": "build_action", "building": "build_action", "developed": "build_action",
+    "develop": "build_action", "implemented": "build_action", "created": "build_action",
+    "designed": "build_action", "design": "build_action",
+    "maintained": "maintain", "maintaining": "maintain",
+    "api": "endpoint", "apis": "endpoint", "restful": "rest",
+    "service": "software_artifact", "services": "software_artifact",
+    "module": "software_artifact", "modules": "software_artifact",
+    "component": "software_artifact", "components": "software_artifact",
+    "application": "software_artifact", "applications": "software_artifact",
+    "ui": "software_artifact", "frontend": "software_artifact",
+    "query": "database_query", "queries": "database_query", "sql": "database_query",
+}
+
+def _responsibility_tokens(value: str) -> Set[str]:
+    raw = re.findall(r"[a-z][a-z0-9+#.]{1,}", _norm(value))
+    normalized = (token.rstrip(".,;:!?") for token in raw)
+    return {
+        RESPONSIBILITY_SYNONYMS.get(token, token)
+        for token in normalized
+        if token not in RESPONSIBILITY_STOP_WORDS and (len(token) > 2 or token == "ui")
+    }
+
+
+def _responsibility_similarity(left: str, right: str) -> float:
+    a, b = _responsibility_tokens(left), _responsibility_tokens(right)
+    if not a or not b:
+        return 0.0
+    overlap = len(a & b)
+    # One generic shared word must never qualify as responsibility evidence.
+    if overlap < 2:
+        return 0.0
+    return (2.0 * overlap) / float(len(a) + len(b))
 
 
 def _role(text: str) -> Optional[str]:
@@ -586,27 +659,45 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
 
     skill_matches = []
     skill_gaps = []
+    aliases_by_name = _skill_aliases()
     for requirement in required + preferred:
-        name = requirement["name"]
-        evidence = skills.get(name, {})
-        direct = [item for item in resume_bullets
-                  if any(_has(item["text"], alias) for alias in _skill_aliases().get(name, (name,)))]
-        demonstrated_ids = list(dict.fromkeys(
-            eid for item in direct for eid in item["evidence_ids"]
-        ))
-        listed_ids = evidence.get("listed", [])
-        all_ids = list(dict.fromkeys(evidence.get("all", []) + demonstrated_ids))
-        status = "demonstrated" if demonstrated_ids else "listed" if listed_ids else "not_found"
+        names = requirement.get("alternatives") or [requirement["name"]]
+        alternative_results = []
+        for name in names:
+            evidence = skills.get(name, {})
+            direct = [item for item in resume_bullets
+                      if any(_has(item["text"], alias) for alias in aliases_by_name.get(name, (name,)))]
+            demonstrated_ids = list(dict.fromkeys(
+                eid for item in direct for eid in item["evidence_ids"]
+            ))
+            listed_ids = evidence.get("listed", [])
+            status = "demonstrated" if demonstrated_ids else "listed" if listed_ids else "not_found"
+            alternative_results.append({
+                "name": name, "status": status,
+                "evidence_ids": demonstrated_ids or listed_ids or evidence.get("all", []),
+            })
+        matched = [item for item in alternative_results if item["status"] != "not_found"]
+        status = (
+            "demonstrated" if any(item["status"] == "demonstrated" for item in matched)
+            else "listed" if matched else "not_found"
+        )
         detail = {
-            "skill": name, "classification": requirement["classification"],
-            "status": status, "resume_evidence_ids": demonstrated_ids or listed_ids or all_ids,
+            "skill": requirement["name"],
+            "classification": requirement["classification"],
+            "status": status,
+            "resume_evidence_ids": list(dict.fromkeys(
+                eid for item in matched for eid in item["evidence_ids"]
+            )),
             "job_description_excerpt": requirement["source_sentence"],
         }
+        if requirement.get("alternatives"):
+            detail["alternatives"] = list(names)
+            detail["matched_alternatives"] = [item["name"] for item in matched]
+            detail["match_rule"] = "any"
         if status == "not_found":
             skill_gaps.append(detail)
         else:
             skill_matches.append(detail)
-
     def coverage(items: List[Dict[str, Any]], weight: int) -> Tuple[Optional[int], List[Dict[str, Any]]]:
         if not items:
             return None, []
@@ -636,22 +727,27 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     responsibility_matches = []
     for line in responsibility_lines:
         ranked = sorted(
-            ((_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
+            ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
             key=lambda pair: pair[0], reverse=True,
         )
-        if ranked and ranked[0][0] >= 0.12:
-            value, bullet = ranked[0]
+        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.14][:2]
+        if relevant:
+            best_value, best_bullet = relevant[0]
             responsibility_matches.append({
                 "job_responsibility": line,
-                "resume_excerpt": bullet["text"],
-                "similarity": round(value, 3),
-                "evidence_ids": bullet["evidence_ids"],
+                "resume_excerpt": best_bullet["text"],
+                "similarity": round(best_value, 3),
+                "evidence_ids": list(dict.fromkeys(
+                    eid for _, bullet in relevant for eid in bullet["evidence_ids"]
+                )),
+                "evidence_type": "direct" if len((_tokens(line) & _tokens(best_bullet["text"])) - RESPONSIBILITY_STOP_WORDS) >= 2 else "supporting",
+                "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
             })
     responsibility_score = None
     if responsibility_lines:
         matched_by_line = {item["job_responsibility"]: item["similarity"] for item in responsibility_matches}
         responsibility_score = int(round(25 * sum(
-            min(1.0, matched_by_line.get(line, 0.0) / 0.35)
+            min(1.0, matched_by_line.get(line, 0.0) / 0.45)
             for line in responsibility_lines
         ) / len(responsibility_lines)))
 
@@ -670,17 +766,23 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     if candidate_role and target_role:
         role_assessment = "aligned" if candidate_role == target_role else "different_signal"
     if candidate_level and target_level:
+        entry_experience_window = bool(re.search(
+            r"\b0\s*(?:-|–|—|to)\s*2\s*(?:years?|yrs?)\b",
+            _norm(job_description),
+        ))
+        internship_counts_for_entry = (
+            candidate_level == "intern" and target_level == "entry"
+            and entry_experience_window
+        )
         seniority_assessment = (
             "aligned" if LEVEL_RANK[candidate_level] >= LEVEL_RANK[target_level]
-            else "below_target_signal"
+            or internship_counts_for_entry else "below_target_signal"
         )
     assessed_role_signals = []
     if candidate_role and target_role:
         assessed_role_signals.append(1.0 if candidate_role == target_role else 0.0)
     if candidate_level and target_level:
-        assessed_role_signals.append(
-            1.0 if LEVEL_RANK[candidate_level] >= LEVEL_RANK[target_level] else 0.0
-        )
+        assessed_role_signals.append(1.0 if seniority_assessment == "aligned" else 0.0)
     if assessed_role_signals:
         role_level_score = int(round(10 * sum(assessed_role_signals) / len(assessed_role_signals)))
 
