@@ -42,8 +42,8 @@ def strong_resume():
 def test_quality_v4_is_independent_and_scores_strong_resume_higher():
     weak = analyze_quality_v4(weak_resume())
     strong = analyze_quality_v4(strong_resume())
-    assert weak["version"] == "quality-v4"
-    assert strong["version"] == "quality-v4"
+    assert weak["version"] == "quality-v4.4"
+    assert strong["version"] == "quality-v4.4"
     assert 0 <= weak["score"] < strong["score"] <= 100
     assert sum(item["possible"] for item in strong["breakdown"]) == 100
     assert sum(item["earned"] for item in strong["breakdown"]) == strong["score"]
@@ -207,13 +207,15 @@ def test_v42_extracts_requirements_and_responsibilities_from_full_markdown_jd():
     parsed = _extract_jd_skills(JOB_DESCRIPTION_V42)
     required = {item["name"] for item in parsed if item["classification"] == "required"}
     preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
-    # V4.3 groups explicit OR alternatives into one any-of requirement.
-    assert {"programming_language", "sql", "database", "git", "rest api"} <= required
-    assert {"spring boot", "aws", "build_tool", "distributed systems", "concurrency"} <= preferred
+    # V4.4 separates the baseline language requirement from preferred examples.
+    assert {"programming_language", "sql", "relational databases", "git", "rest api"} <= required
+    assert {"preferred_programming_language", "spring boot", "aws", "build_tool", "distributed systems", "concurrency"} <= preferred
     programming_language = next(item for item in parsed if item["name"] == "programming_language")
-    database = next(item for item in parsed if item["name"] == "database")
+    preferred_language = next(item for item in parsed if item["name"] == "preferred_programming_language")
+    database = next(item for item in parsed if item["name"] == "relational databases")
     build_tool = next(item for item in parsed if item["name"] == "build_tool")
-    assert programming_language["alternatives"] == ["java", "kotlin"]
+    assert programming_language["match_rule"] == "any_language"
+    assert preferred_language["alternatives"] == ["java", "kotlin"]
     assert database["alternatives"] == ["postgresql", "mysql"]
     assert build_tool["alternatives"] == ["gradle", "maven"]
 
@@ -231,11 +233,12 @@ def test_v42_handles_collapsed_markdown_jd_headings_and_bullets():
     parsed = _extract_jd_skills(collapsed)
     required = {item["name"] for item in parsed if item["classification"] == "required"}
     preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
-    # Collapsed Markdown must preserve the V4.3 OR-group contract as well.
+    # Collapsed Markdown must preserve the generic-language / preferred-example split.
     assert "programming_language" in required
+    assert "preferred_programming_language" in preferred
     assert "spring boot" in preferred
     grouped = next(item for item in parsed if item["name"] == "programming_language")
-    assert grouped["alternatives"] == ["java", "kotlin"]
+    assert grouped["match_rule"] == "any_language"
 
 
 def test_parser_recognizes_core_concepts_without_inflating_related_skills():
@@ -338,3 +341,114 @@ def test_v4_matches_added_core_skills_but_does_not_infer_http_from_api_developme
     }
     assert result["missing_required_skills"] == ["http"]
     assert all(item["status"] == "listed" for item in result["skill_matches"])
+
+
+def dakshta_resume():
+    return parse_lines([
+        "Sample Candidate", "candidate@example.com", "Education",
+        "Motilal Nehru National Institute of Technology, Allahabad",
+        "Bachelor of Technology, Computer Science and Engineering, CPI 8.46 / 10",
+        "Experience", "Example Corp | Jan 2026 - June 2026",
+        "Software Development Engineer in Test (SDET) Intern",
+        "Project 1: Centralized Server Management Dashboard",
+        "• Engineered and deployed a centralized server management dashboard using React, Python, and AWS to monitor 22 lab servers across 6 QA sub-teams, eliminating 3-4 hours/week of manual status checks.",
+        "• Enabled browser-based SSH access using WebSocket and AWS SSM, allowing remote server interaction and reboot operations directly from the dashboard, with 105 SSH sessions in 9 days.",
+        "• Streamlined server compliance monitoring and remediation, including safe reboot handling, while reducing offline-server detection from hours/days to under 5 minutes through automated Slack notifications.",
+        "• Simplified server onboarding using AWS SSM Parameter Store, enabling registration without code changes or application redeployment and reducing engineer intervention for new server setup.",
+        "Project 2: AI-Powered Log Analyzer and Root Cause Analyzer",
+        "• Engineered an automated log collection and failure diagnosis system using Python, Amazon Bedrock, and LLM workflows, eliminating manual reproduction and log collection for test failures.",
+        "• Designed a two-pass LLM-based failure analysis workflow to classify failures and identify root causes with evidence, confidence scores, and visual observations, validating 9/9 P0 scenarios.",
+        "• Reduced failure diagnosis time from 1-2 hours to 2-3 minutes through automated log analysis and root-cause identification, significantly streamlining failure investigation.",
+        "• Optimized device log storage and transfer using gzip compression, achieving approximately 80% reduction in log size before S3 upload.",
+        "Example Corp | June 2024 - July 2024",
+        "Software Development Engineer in Test (SDET) Intern",
+        "• Automated crash tracking across 100-200 weekly Kibana records, creating Jira tickets for new crashes and updating existing tickets with crash metrics, eliminating 1-2 days of manual QA effort per week.",
+        "• Built a scheduled reporting workflow that updated Jira tickets every 7 days and generated HTML email reports for stakeholders, processing approximately 20-25 new Jira tickets per week.",
+        "Projects", "NovaChat", "MERN stack application for real-time chat, voice, and video communication",
+        "• Developed a real-time communication platform using React, Node.js, Express.js, and MongoDB, implementing JWT authentication with OTP verification and persistent message history.",
+        "• Implemented real-time messaging with Socket.io and peer-to-peer voice/video communication using WebRTC, supporting individual and group conversations.",
+        "Blog-zone", "MERN stack blogging platform for content creation, management, and sharing",
+        "• Built secure user authentication and registration using Google OAuth, with role-based access for managing platform content.",
+        "• Developed an admin dashboard for content moderation and post management, implementing like/dislike functionality and Dark Mode for improved user experience.",
+        "Technical Skills",
+        "Languages: C++, C, Python, SQL",
+        "Frontend: ReactJS, HTML, CSS, Bootstrap, Tailwind CSS",
+        "Backend: Node.js, Express.js, REST APIs, WebSockets",
+        "Databases: MySQL, MongoDB, DynamoDB",
+        "Cloud & AWS: AWS Lambda, AWS SSM, Amazon S3, Amazon Bedrock",
+        "Tools: Git, GitHub, VS Code, Jira, Kibana",
+        "Engineering Practices: SDLC, Agile, CI/CD, Code Reviews, Automated Testing, Technical Documentation, Code Quality",
+        "Core: Data Structures and Algorithms, Object-Oriented Programming, DBMS, Operating Systems, System Design, Test Automation",
+    ])
+
+
+def test_quality_v44_does_not_score_role_titles_or_project_headings_as_weak_bullets():
+    parsed = dakshta_resume()
+    result = analyze_quality_v4(parsed)
+    actual_bullet_ids = {
+        evidence_id
+        for section in parsed["sections"]
+        for item in section["items"]
+        if item.get("kind") == "bullet"
+        for evidence_id in item.get("evidence_ids", [])
+    }
+    non_bullet_ids = {
+        evidence_id
+        for section in parsed["sections"]
+        for item in section["items"]
+        if item.get("kind") != "bullet"
+        for evidence_id in item.get("evidence_ids", [])
+    }
+    weak = next((item for item in result["findings"] if item["code"] == "evidence_quality_weak_bullets"), None)
+    weak_ids = set(weak["evidence_ids"]) if weak else set()
+    assert result["evidence_summary"]["achievement_bullets"] == len(actual_bullet_ids)
+    assert weak_ids <= actual_bullet_ids
+    assert not (weak_ids & non_bullet_ids)
+
+
+def test_v44_dakshta_regression_language_relational_db_sdet_and_real_responsibilities():
+    resume = dakshta_resume()
+    result = analyze_job_match_v4(resume, JOB_DESCRIPTION_V42)
+    matches = {item["skill"]: item for item in result["skill_matches"]}
+
+    # The generic requirement is satisfied by demonstrated Python, while
+    # Java/Kotlin remain preferred examples and are not fabricated.
+    assert matches["programming_language"]["status"] == "demonstrated"
+    assert "python" in matches["programming_language"]["matched_alternatives"]
+    assert "preferred_programming_language" in result["missing_preferred_skills"]
+
+    # MySQL is a relational database, but it does not prove schema design,
+    # indexing, joins, or query optimization.
+    assert matches["relational databases"]["status"] == "listed"
+    assert "mysql" in matches["relational databases"]["matched_alternatives"]
+    assert "sql" in result["matched_required_skills"]
+    assert {"database design", "indexing", "query optimization", "http"} <= set(result["missing_required_skills"])
+
+    # SDET is a software-engineering family specialization, not an unrelated role.
+    assert result["role_alignment"]["candidate_family"] == "software_engineering"
+    assert result["role_alignment"]["assessment"] == "aligned"
+    assert result["role_alignment"]["candidate_specialization"] == "quality_engineering"
+    assert result["seniority_alignment"]["assessment"] == "aligned"
+
+    # Duties must retrieve evidence from actual experience/project bullets.
+    assert result["assessment_coverage"]["responsibility_statements"] == 8
+    assert result["assessment_coverage"]["responsibility_matches"] >= 5
+    assert result["breakdown"][2]["earned"] > 0
+    assert all(item["evidence_ids"] for item in result["responsibility_matches"])
+    assert any(item["evidence_type"] == "listed" for item in result["responsibility_matches"])
+
+
+def test_v44_does_not_treat_related_frameworks_or_api_terms_as_equivalent_skills():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Python, Node.js, Express.js, REST APIs",
+        "Experience", "Software Development Engineer in Test Intern",
+        "• Developed backend services using Node.js and Express.js.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Required Qualifications:\n- HTTP protocols\n"
+        "Preferred Qualifications:\n- Spring Boot",
+    )
+    assert result["missing_required_skills"] == ["http"]
+    assert result["missing_preferred_skills"] == ["spring boot"]
