@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .parser_v2 import SKILL_GROUPS
 
-QUALITY_VERSION = "quality-v4"
-MATCH_VERSION = "match-v4"
+QUALITY_VERSION = "quality-v4.4"
+MATCH_VERSION = "match-v4.4"
 
 WEIGHTS = {
     "evidence_quality": 25,
@@ -1011,6 +1011,8 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         "minimum_assessed_weight": minimum_assessed_weight,
         "version": MATCH_VERSION,
         "score_method": "normalized_assessed_dimensions",
+        "responsibility_method": "weighted_concept_retrieval_v1",
+        "skill_requirement_method": "taxonomy_provenance_and_alternatives",
         "assessment_coverage": {
             "assessed_weight": active_weight,
             "available_weight": 90,
