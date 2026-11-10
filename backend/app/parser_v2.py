@@ -88,6 +88,12 @@ SKILL_GROUPS = {
     "rasa": ("rasa",),
     "framer motion": ("framer motion", "framer-motion"),
     "calendarjs": ("calendarjs",),
+    "data structures and algorithms": ("data structures and algorithms", "data structures & algorithms", "dsa"),
+    "object-oriented programming": ("object-oriented programming", "object oriented programming", "object-oriented design", "object oriented design", "oop", "ood"),
+    "distributed systems": ("distributed systems", "distributed system"),
+    "api development": ("api development", "api design", "api implementation"),
+    "gradle": ("gradle",),
+    "maven": ("maven",),
 }
 
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.I)
