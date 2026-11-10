@@ -111,6 +111,12 @@ DATE_LINE_RE = re.compile(
     r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{4})\s*$",
     re.I,
 )
+CURRENT_DATE_RANGE_RE = re.compile(
+    r"\b(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
+    r"jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)[a-z]*\.?\s+"
+    r"\d{4}|\d{1,2}[/-]\d{4}|\d{4})\s*(?:-|–|—|to)\s*(?:present|current)\b",
+    re.I,
+)
 
 
 def _clean_line(value: str) -> str:
@@ -410,8 +416,8 @@ def parse_resume_v2(filename: str, content: bytes) -> Dict[str, Any]:
         warnings.append("No selectable text was extracted; this may be a scanned document.")
     if len(records) < 5:
         warnings.append("Only a small number of text lines were extracted; review the parsed content.")
-    if any(re.search(r"\b(?:present|current)\b", record["text"], re.I) for record in records):
-        warnings.append("One or more dates use 'Present' or 'Current'; verify that they reflect the candidate's current status.")
+    if any(CURRENT_DATE_RANGE_RE.search(record["text"]) for record in records):
+        warnings.append("One or more date ranges end in 'Present' or 'Current'; verify that they reflect the candidate's current status.")
     if not candidate["name"]:
         warnings.append("Candidate name could not be identified confidently.")
     if not candidate["profile_urls"]:
