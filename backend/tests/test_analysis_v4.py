@@ -878,3 +878,14 @@ def test_v45_match_score_requires_multiple_assessed_dimensions():
     assert result["score_status"] == "insufficient_data"
     assert result["score"] is None
     assert result["assessed_dimensions"] < 2
+
+
+
+def test_v45_detects_wrapped_quality_match_resume_analyzer_payload():
+    from app.analysis_v4 import _is_analyzer_payload
+
+    payload = (
+        '{"quality":{"score":73},"job_match":{"score":25},'
+        '"resume":{"candidate":{"name":"Sample"}}}'
+    )
+    assert _is_analyzer_payload(payload)
