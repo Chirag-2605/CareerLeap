@@ -739,7 +739,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
                 "evidence_ids": list(dict.fromkeys(
                     eid for _, bullet in relevant for eid in bullet["evidence_ids"]
                 )),
-                "evidence_type": "direct" if best_value >= 0.30 else "supporting",
+                "evidence_type": "direct" if len((_tokens(line) & _tokens(best_bullet["text"])) - RESPONSIBILITY_STOP_WORDS) >= 2 else "supporting",
                 "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
             })
     responsibility_score = None
