@@ -28,7 +28,7 @@ function Card({children}: any) { return <View style={styles.card}>{children}</Vi
 
 export default function App() {
   const [user, setUser] = useState<User|null>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [isGuest, setIsGuest] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -102,7 +102,7 @@ export default function App() {
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
-      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : isGuest ? <Pressable hitSlop={12} onPress={() => { reset(); setIsGuest(false); }}><Text style={styles.link}>Exit guest</Text></Pressable> : <Pressable hitSlop={12} onPress={() => setIsGuest(true)} style={styles.status}><Text style={styles.statusText}>Guest · Tap to continue</Text></Pressable>}
+      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : <View style={styles.status}><Text style={styles.statusText}>Guest mode</Text></View>}
     </View>
 
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
