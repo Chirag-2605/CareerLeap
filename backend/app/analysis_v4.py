@@ -621,27 +621,45 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
 
     skill_matches = []
     skill_gaps = []
+    aliases_by_name = _skill_aliases()
     for requirement in required + preferred:
-        name = requirement["name"]
-        evidence = skills.get(name, {})
-        direct = [item for item in resume_bullets
-                  if any(_has(item["text"], alias) for alias in _skill_aliases().get(name, (name,)))]
-        demonstrated_ids = list(dict.fromkeys(
-            eid for item in direct for eid in item["evidence_ids"]
-        ))
-        listed_ids = evidence.get("listed", [])
-        all_ids = list(dict.fromkeys(evidence.get("all", []) + demonstrated_ids))
-        status = "demonstrated" if demonstrated_ids else "listed" if listed_ids else "not_found"
+        names = requirement.get("alternatives") or [requirement["name"]]
+        alternative_results = []
+        for name in names:
+            evidence = skills.get(name, {})
+            direct = [item for item in resume_bullets
+                      if any(_has(item["text"], alias) for alias in aliases_by_name.get(name, (name,)))]
+            demonstrated_ids = list(dict.fromkeys(
+                eid for item in direct for eid in item["evidence_ids"]
+            ))
+            listed_ids = evidence.get("listed", [])
+            status = "demonstrated" if demonstrated_ids else "listed" if listed_ids else "not_found"
+            alternative_results.append({
+                "name": name, "status": status,
+                "evidence_ids": demonstrated_ids or listed_ids or evidence.get("all", []),
+            })
+        matched = [item for item in alternative_results if item["status"] != "not_found"]
+        status = (
+            "demonstrated" if any(item["status"] == "demonstrated" for item in matched)
+            else "listed" if matched else "not_found"
+        )
         detail = {
-            "skill": name, "classification": requirement["classification"],
-            "status": status, "resume_evidence_ids": demonstrated_ids or listed_ids or all_ids,
+            "skill": requirement["name"],
+            "classification": requirement["classification"],
+            "status": status,
+            "resume_evidence_ids": list(dict.fromkeys(
+                eid for item in matched for eid in item["evidence_ids"]
+            )),
             "job_description_excerpt": requirement["source_sentence"],
         }
+        if requirement.get("alternatives"):
+            detail["alternatives"] = list(names)
+            detail["matched_alternatives"] = [item["name"] for item in matched]
+            detail["match_rule"] = "any"
         if status == "not_found":
             skill_gaps.append(detail)
         else:
             skill_matches.append(detail)
-
     def coverage(items: List[Dict[str, Any]], weight: int) -> Tuple[Optional[int], List[Dict[str, Any]]]:
         if not items:
             return None, []
