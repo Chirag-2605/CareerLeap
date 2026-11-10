@@ -452,3 +452,16 @@ def test_v44_does_not_treat_related_frameworks_or_api_terms_as_equivalent_skills
     )
     assert result["missing_required_skills"] == ["http"]
     assert result["missing_preferred_skills"] == ["spring boot"]
+
+
+def test_v44_generic_language_requirement_respects_preferred_section_context():
+    from app.analysis_v4 import _extract_jd_skills
+
+    parsed = _extract_jd_skills(
+        "Preferred Qualifications:\n"
+        "- Proficiency in at least one programming language, preferably Java or Kotlin."
+    )
+    generic = next(item for item in parsed if item["name"] == "programming_language")
+    examples = next(item for item in parsed if item["name"] == "preferred_programming_language")
+    assert generic["classification"] == "preferred"
+    assert examples["classification"] == "preferred"
