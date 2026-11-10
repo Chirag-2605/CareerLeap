@@ -754,6 +754,16 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     skills = _resume_skill_map(resume)
     jd_skills = _extract_jd_skills(job_description)
     resume_bullets = _bullets(sections, ("experience", "projects", "leadership", "volunteer"))
+    # Skills-section mentions may support a duty, but remain explicitly listed-only
+    # evidence and receive less weight than demonstrated experience/project bullets.
+    resume_evidence = list(resume_bullets)
+    for item in sections.get("skills", []):
+        text = _item_text(item)
+        if text:
+            resume_evidence.append({
+                "section": "skills", "text": text,
+                "evidence_ids": _item_ids(item), "provenance": "listed",
+            })
     required = [item for item in jd_skills if item["classification"] == "required"]
     preferred = [item for item in jd_skills if item["classification"] == "preferred"]
     informational = [item for item in jd_skills if item["classification"] == "not_assessed"]
@@ -842,26 +852,35 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     ))
     responsibility_matches = []
     for line in responsibility_lines:
-        ranked = sorted(
-            ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
-            key=lambda pair: pair[0], reverse=True,
-        )
-        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.18][:2]
+        ranked = []
+        for evidence in resume_evidence:
+            raw_similarity = _responsibility_similarity(line, evidence["text"])
+            is_listed = evidence.get("provenance") == "listed"
+            adjusted_similarity = raw_similarity * (0.55 if is_listed else 1.0)
+            ranked.append((adjusted_similarity, evidence))
+        ranked.sort(key=lambda pair: pair[0], reverse=True)
+        relevant = [(value, evidence) for value, evidence in ranked if value >= 0.18][:2]
         if relevant:
             best_value, best_bullet = relevant[0]
             matched_concepts = sorted(
                 _responsibility_concepts(line) & _responsibility_concepts(best_bullet["text"])
             )
+            is_listed_evidence = best_bullet.get("provenance") == "listed"
             responsibility_matches.append({
                 "job_responsibility": line,
                 "resume_excerpt": best_bullet["text"],
                 "similarity": round(best_value, 3),
                 "matched_concepts": matched_concepts,
                 "evidence_ids": list(dict.fromkeys(
-                    eid for _, bullet in relevant for eid in bullet["evidence_ids"]
+                    eid for _, evidence in relevant for eid in evidence["evidence_ids"]
                 )),
-                "evidence_type": "direct" if best_value >= 0.48 and len(matched_concepts) >= 2 else "supporting",
-                "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
+                "evidence_type": (
+                    "listed" if is_listed_evidence else
+                    "direct" if best_value >= 0.48 and len(matched_concepts) >= 2 else
+                    "supporting"
+                ),
+                "evidence_status": "listed" if is_listed_evidence else "demonstrated",
+                "supporting_excerpts": [evidence["text"] for _, evidence in relevant[1:]],
             })
     responsibility_score = None
     if responsibility_lines:
