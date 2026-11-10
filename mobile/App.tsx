@@ -102,7 +102,7 @@ export default function App() {
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
-      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : isGuest ? <Pressable hitSlop={12} onPress={() => { reset(); setIsGuest(false); }}><Text style={styles.link}>Exit guest</Text></Pressable> : null}
+      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : isGuest ? <Pressable hitSlop={12} onPress={() => { reset(); setIsGuest(false); }}><Text style={styles.link}>Exit guest</Text></Pressable> : <Pressable hitSlop={12} onPress={() => setIsGuest(true)} style={styles.status}><Text style={styles.statusText}>Guest · Tap to continue</Text></Pressable>}
     </View>
 
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   brandMark:{width:40,height:40,borderRadius:13,backgroundColor:C.navy,alignItems:"center",justifyContent:"center"},
   brandMarkText:{color:"#FFFFFF",fontWeight:"900",fontSize:20,letterSpacing:-1},
   brand:{fontSize:17,fontWeight:"800",color:C.ink,letterSpacing:-.35},brandSub:{fontSize:9,letterSpacing:1.55,color:C.muted,marginTop:3,fontWeight:"700"},
-  status:{fontSize:11,color:C.muted,backgroundColor:"#F2F4F7",paddingHorizontal:10,paddingVertical:6,borderRadius:20},link:{color:C.blue,fontWeight:"700",fontSize:13},
+  status:{backgroundColor:"#F2F4F7",paddingHorizontal:10,paddingVertical:6,borderRadius:20},statusText:{fontSize:11,color:C.blue,fontWeight:"700"},link:{color:C.blue,fontWeight:"700",fontSize:13},
   content:{paddingHorizontal:20,paddingTop:8,paddingBottom:42},hero:{paddingTop:22,paddingBottom:24},
   heroAccent:{flexDirection:"row",alignItems:"center",gap:7,marginBottom:12},
   heroAccentDot:{width:7,height:7,borderRadius:4,backgroundColor:C.blue},
