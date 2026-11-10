@@ -593,14 +593,16 @@ RESPONSIBILITY_STOP_WORDS = STOP_WORDS | {
     "good", "knowledge", "understanding", "ability", "including",
 }
 RESPONSIBILITY_SYNONYMS = {
-    "built": "develop", "building": "develop", "developed": "develop",
-    "implemented": "develop", "created": "develop", "designed": "design",
+    "built": "build_action", "building": "build_action", "developed": "build_action",
+    "develop": "build_action", "implemented": "build_action", "created": "build_action",
+    "designed": "build_action", "design": "build_action",
     "maintained": "maintain", "maintaining": "maintain",
     "api": "endpoint", "apis": "endpoint", "restful": "rest",
-    "service": "backend_component", "services": "backend_component",
-    "module": "backend_component", "modules": "backend_component",
-    "component": "backend_component", "components": "backend_component",
-    "ui": "interface", "frontend": "interface",
+    "service": "software_artifact", "services": "software_artifact",
+    "module": "software_artifact", "modules": "software_artifact",
+    "component": "software_artifact", "components": "software_artifact",
+    "application": "software_artifact", "applications": "software_artifact",
+    "ui": "software_artifact", "frontend": "software_artifact",
     "query": "database_query", "queries": "database_query", "sql": "database_query",
 }
 
