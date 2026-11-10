@@ -826,3 +826,55 @@ def test_v45_test_automation_skill_split_across_pdf_lines_is_reconstructed():
     ])
     names = {item["canonical_name"] for item in parsed["skills"]}
     assert "test automation" in names
+
+
+
+def test_v45_rejects_serialized_analyzer_json_as_a_job_description():
+    import pytest
+
+    payload = (
+        '{"score":25,"version":"match-v4.5","breakdown":[],"requirements":[],'
+        '"responsibility_matches":[],"assessment_coverage":{}}'
+    )
+    with pytest.raises(ValueError, match="readable job description"):
+        analyze_job_match_v4(dakshta_resume(), payload)
+
+
+def test_v45_removes_embedded_analyzer_json_without_losing_real_job_text():
+    from app.analysis_v4 import _clean_job_description
+
+    raw = (
+        "Entry Level Software Engineer\\n"
+        "Responsibilities:\\n"
+        "- Develop backend services and REST APIs.\\n"
+        '{"score":25,"breakdown":[],"responsibility_matches":[]}\\n'
+        "Required Qualifications:\\n- Proficiency in Java."
+    )
+    cleaned, warnings = _clean_job_description(raw)
+    assert "Develop backend services and REST APIs." in cleaned
+    assert "Proficiency in Java." in cleaned
+    assert '"score":25' not in cleaned
+    assert warnings
+
+
+def test_v45_extracts_responsibilities_from_what_you_will_be_doing_heading():
+    from app.analysis_v4 import _extract_jd_lines
+
+    lines = _extract_jd_lines(
+        "Entry Level Software Engineer\\n"
+        "What You'll Be Doing:\\n"
+        "- Develop backend services and maintain APIs.\\n"
+        "Required Qualifications:\\n- Java and SQL."
+    )
+    responsibilities = [item["text"] for item in lines if item["classification"] == "responsibility"]
+    assert responsibilities == ["Develop backend services and maintain APIs."]
+
+
+def test_v45_match_score_requires_multiple_assessed_dimensions():
+    result = analyze_job_match_v4(
+        dakshta_resume(),
+        "Required Qualifications:\\n- Python",
+    )
+    assert result["score_status"] == "insufficient_data"
+    assert result["score"] is None
+    assert result["assessed_dimensions"] < 2
