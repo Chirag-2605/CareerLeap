@@ -42,8 +42,8 @@ def strong_resume():
 def test_quality_v4_is_independent_and_scores_strong_resume_higher():
     weak = analyze_quality_v4(weak_resume())
     strong = analyze_quality_v4(strong_resume())
-    assert weak["version"] == "quality-v4.4"
-    assert strong["version"] == "quality-v4.4"
+    assert weak["version"] == "quality-v4.5"
+    assert strong["version"] == "quality-v4.5"
     assert 0 <= weak["score"] < strong["score"] <= 100
     assert sum(item["possible"] for item in strong["breakdown"]) == 100
     assert sum(item["earned"] for item in strong["breakdown"]) == strong["score"]
@@ -811,7 +811,7 @@ def test_v45_real_resume_collaboration_responsibility_requires_explicit_collabor
 def test_v45_real_resume_quality_best_practices_uses_test_validation_not_skills_list():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\\n"
+        "Responsibilities:\n"
         "- Follow software engineering best practices, including version control, testing, and documentation.",
     )
     assert result["responsibility_matches"]
@@ -819,7 +819,6 @@ def test_v45_real_resume_quality_best_practices_uses_test_validation_not_skills_
     assert match["evidence_status"] == "demonstrated"
     assert "validating 9/9 p0 scenarios" in match["resume_excerpt"].lower()
     assert "Engineering Practices:" not in match["resume_excerpt"]
-
 
 def test_v45_test_automation_skill_split_across_pdf_lines_is_reconstructed():
     # A continuation line in a skills section must not become a separate skill.
