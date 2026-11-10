@@ -681,7 +681,10 @@ RESPONSIBILITY_CONCEPT_PATTERNS = {
     "monitoring_operations": (r"\b(?:monitor|monitoring|monitored|alert|alerts|notification|notifications|compliance|status checks?|health checks?|offline-server)\b",),
     "performance_improvement": (r"\b(?:performance|latency|throughput|optimi[sz]|reduced|reducing|improv|accelerat|eliminat|streamlin|hours?|minutes?)\w*\b",),
     "collaboration": (r"\b(?:collaborat|cross-functional|stakeholders?|teams?|sub-teams?|product managers?|qa engineers?|developers?)\w*\b",),
-    "code_quality": (r"\b(?:code reviews?|code quality|best practices|clean code|maintainable code|refactor|coding standards)\b",),
+    "code_quality": (
+        r"\b(?:code reviews?|code quality|best practices|clean code|maintainable code|refactor|coding standards)\b",
+        r"\b(?:clean|efficient|maintainable)\b.{0,50}\bcode\b",
+    ),
     "version_control": (r"\b(?:git|version control|source control)\b",),
     "documentation": (r"\b(?:documentation|documenting|technical docs|readme)\b",),
     "security_auth": (r"\b(?:authentication|authorization|oauth|jwt|security|access control)\b",),
