@@ -345,10 +345,10 @@ def test_v4_matches_added_core_skills_but_does_not_infer_http_from_api_developme
 
 def dakshta_resume():
     return parse_lines([
-        "Dakshta Patel", "dakshtapatel00@gmail.com", "Education",
+        "Sample Candidate", "candidate@example.com", "Education",
         "Motilal Nehru National Institute of Technology, Allahabad",
         "Bachelor of Technology, Computer Science and Engineering, CPI 8.46 / 10",
-        "Experience", "Amazon | Jan 2026 - June 2026",
+        "Experience", "Example Corp | Jan 2026 - June 2026",
         "Software Development Engineer in Test (SDET) Intern",
         "Project 1: Centralized Server Management Dashboard",
         "• Engineered and deployed a centralized server management dashboard using React, Python, and AWS to monitor 22 lab servers across 6 QA sub-teams, eliminating 3-4 hours/week of manual status checks.",
@@ -360,7 +360,7 @@ def dakshta_resume():
         "• Designed a two-pass LLM-based failure analysis workflow to classify failures and identify root causes with evidence, confidence scores, and visual observations, validating 9/9 P0 scenarios.",
         "• Reduced failure diagnosis time from 1-2 hours to 2-3 minutes through automated log analysis and root-cause identification, significantly streamlining failure investigation.",
         "• Optimized device log storage and transfer using gzip compression, achieving approximately 80% reduction in log size before S3 upload.",
-        "Amazon | June 2024 - July 2024",
+        "Example Corp | June 2024 - July 2024",
         "Software Development Engineer in Test (SDET) Intern",
         "• Automated crash tracking across 100-200 weekly Kibana records, creating Jira tickets for new crashes and updating existing tickets with crash metrics, eliminating 1-2 days of manual QA effort per week.",
         "• Built a scheduled reporting workflow that updated Jira tickets every 7 days and generated HTML email reports for stakeholders, processing approximately 20-25 new Jira tickets per week.",
@@ -435,6 +435,7 @@ def test_v44_dakshta_regression_language_relational_db_sdet_and_real_responsibil
     assert result["assessment_coverage"]["responsibility_matches"] >= 5
     assert result["breakdown"][2]["earned"] > 0
     assert all(item["evidence_ids"] for item in result["responsibility_matches"])
+    assert any(item["evidence_type"] == "listed" for item in result["responsibility_matches"])
 
 
 def test_v44_does_not_treat_related_frameworks_or_api_terms_as_equivalent_skills():
