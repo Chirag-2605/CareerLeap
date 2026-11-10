@@ -808,13 +808,17 @@ def test_v45_real_resume_collaboration_responsibility_requires_explicit_collabor
     assert result["responsibility_matches"] == []
 
 
-def test_v45_real_resume_quality_best_practices_does_not_count_skills_list_as_demonstrated():
+def test_v45_real_resume_quality_best_practices_uses_test_validation_not_skills_list():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\n"
+        "Responsibilities:\\n"
         "- Follow software engineering best practices, including version control, testing, and documentation.",
     )
-    assert result["responsibility_matches"] == []
+    assert result["responsibility_matches"]
+    match = result["responsibility_matches"][0]
+    assert match["evidence_status"] == "demonstrated"
+    assert "validating 9/9 p0 scenarios" in match["resume_excerpt"].lower()
+    assert "Engineering Practices:" not in match["resume_excerpt"]
 
 
 def test_v45_test_automation_skill_split_across_pdf_lines_is_reconstructed():
