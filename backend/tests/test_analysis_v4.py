@@ -307,3 +307,24 @@ def test_internship_is_aligned_with_entry_role_when_jd_accepts_zero_to_two_years
         "Required Qualifications:\n- Java",
     )
     assert result["seniority_alignment"]["assessment"] == "aligned"
+
+
+def test_v4_matches_added_core_skills_but_does_not_infer_http_from_api_development():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Data Structures & Algorithms, Object-Oriented Design, Distributed Systems, API Development",
+        "Experience", "Software Engineer Intern",
+        "• Built a React dashboard for internal users.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Required Qualifications:\n- Data Structures and Algorithms\n"
+        "- Object-Oriented Programming\n- Distributed Systems\n"
+        "- API Development\n- HTTP protocols",
+    )
+    assert set(result["matched_required_skills"]) == {
+        "data structures and algorithms", "object-oriented programming",
+        "distributed systems", "api development",
+    }
+    assert result["missing_required_skills"] == ["http"]
+    assert all(item["status"] == "listed" for item in result["skill_matches"])
