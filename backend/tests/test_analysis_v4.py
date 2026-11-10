@@ -207,8 +207,15 @@ def test_v42_extracts_requirements_and_responsibilities_from_full_markdown_jd():
     parsed = _extract_jd_skills(JOB_DESCRIPTION_V42)
     required = {item["name"] for item in parsed if item["classification"] == "required"}
     preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
-    assert {"java", "kotlin", "sql", "postgresql", "mysql", "git", "rest api"} <= required
-    assert {"spring boot", "aws", "gradle", "maven", "distributed systems", "concurrency"} <= preferred
+    # V4.3 groups explicit OR alternatives into one any-of requirement.
+    assert {"programming_language", "sql", "database", "git", "rest api"} <= required
+    assert {"spring boot", "aws", "build_tool", "distributed systems", "concurrency"} <= preferred
+    programming_language = next(item for item in parsed if item["name"] == "programming_language")
+    database = next(item for item in parsed if item["name"] == "database")
+    build_tool = next(item for item in parsed if item["name"] == "build_tool")
+    assert programming_language["alternatives"] == ["java", "kotlin"]
+    assert database["alternatives"] == ["postgresql", "mysql"]
+    assert build_tool["alternatives"] == ["gradle", "maven"]
 
     result = analyze_job_match_v4(strong_resume(), JOB_DESCRIPTION_V42)
     assert result["assessment_coverage"]["required_skills"] >= 7
@@ -220,12 +227,15 @@ def test_v42_extracts_requirements_and_responsibilities_from_full_markdown_jd():
 def test_v42_handles_collapsed_markdown_jd_headings_and_bullets():
     from app.analysis_v4 import _extract_jd_skills
 
-    collapsed = re.sub(r"\\s+", " ", JOB_DESCRIPTION_V42)
+    collapsed = re.sub(r"\s+", " ", JOB_DESCRIPTION_V42)
     parsed = _extract_jd_skills(collapsed)
     required = {item["name"] for item in parsed if item["classification"] == "required"}
     preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
-    assert "java" in required
+    # Collapsed Markdown must preserve the V4.3 OR-group contract as well.
+    assert "programming_language" in required
     assert "spring boot" in preferred
+    grouped = next(item for item in parsed if item["name"] == "programming_language")
+    assert grouped["alternatives"] == ["java", "kotlin"]
 
 
 def test_parser_recognizes_core_concepts_without_inflating_related_skills():
