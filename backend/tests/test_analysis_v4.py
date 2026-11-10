@@ -794,10 +794,7 @@ def test_v45_real_resume_database_responsibility_does_not_use_gzip_bullet_as_dir
         dakshta_resume(),
         "Responsibilities:\n- Work with relational databases and write optimized SQL queries.",
     )
-    if result["responsibility_matches"]:
-        match = result["responsibility_matches"][0]
-        assert "gzip" not in match["resume_excerpt"].lower()
-        assert match["evidence_type"] != "direct"
+    assert result["responsibility_matches"] == []
 
 
 def test_v45_real_resume_collaboration_responsibility_requires_explicit_collaboration_evidence():
