@@ -873,7 +873,7 @@ def test_v45_extracts_responsibilities_from_what_you_will_be_doing_heading():
 def test_v45_match_score_requires_multiple_assessed_dimensions():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Required Qualifications:\n- Python",
+        "Required Qualifications:\n- Proficiency in Python programming language.",
     )
     assert result["score_status"] == "insufficient_data"
     assert result["score"] is None
