@@ -539,7 +539,7 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
         lowered = _norm(line["text"])
         for group_name, alternatives in alternative_patterns:
             left, right = alternatives
-            pattern = r"\\b" + re.escape(left) + r"\\b\\s+or\\s+\\b" + re.escape(right) + r"\\b"
+            pattern = r"\b" + re.escape(left) + r"\b\s+or\s+\b" + re.escape(right) + r"\b"
             if not re.search(pattern, lowered):
                 continue
             classification = line["classification"]
