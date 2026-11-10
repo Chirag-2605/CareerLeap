@@ -476,7 +476,7 @@ def test_v44_generic_language_requirement_respects_preferred_section_context():
 def _responsibility_result(resume, duty):
     return analyze_job_match_v4(
         resume,
-        "Entry Level Software Engineer\\nResponsibilities:\\n- " + duty,
+        "Entry Level Software Engineer\nResponsibilities:\n- " + duty,
     )
 
 
@@ -650,7 +650,7 @@ def test_v45_rest_api_mention_does_not_prove_http_protocol_expertise():
         "• Built REST APIs for an internal application.",
     ])
     result = analyze_job_match_v4(
-        resume, "Required Qualifications:\\n- HTTP protocol expertise"
+        resume, "Required Qualifications:\n- HTTP protocol expertise"
     )
     assert "http" in result["missing_required_skills"]
 
@@ -662,7 +662,7 @@ def test_v45_express_does_not_satisfy_spring_boot_requirement():
         "• Developed backend services using Node.js and Express.js.",
     ])
     result = analyze_job_match_v4(
-        resume, "Entry Level Backend Software Engineer\\nRequired Qualifications:\\n- Spring Boot"
+        resume, "Entry Level Backend Software Engineer\nRequired Qualifications:\n- Spring Boot"
     )
     assert "spring boot" in result["missing_required_skills"]
 
@@ -671,7 +671,7 @@ def test_v45_any_programming_language_phrase_is_recognized_as_generic_requiremen
     from app.analysis_v4 import _extract_jd_skills
 
     requirements = _extract_jd_skills(
-        "Required Qualifications:\\n- Proficiency in any programming language."
+        "Required Qualifications:\n- Proficiency in any programming language."
     )
     generic = [item for item in requirements if item["name"] == "programming_language"]
     assert len(generic) == 1
@@ -682,7 +682,7 @@ def test_v45_generic_language_does_not_turn_java_kotlin_examples_into_hard_requi
     from app.analysis_v4 import _extract_jd_skills
 
     requirements = _extract_jd_skills(
-        "Required Qualifications:\\n"
+        "Required Qualifications:\n"
         "- Proficiency in at least one programming language, preferably Java or Kotlin."
     )
     names = {item["name"] for item in requirements}
@@ -696,7 +696,7 @@ def test_v45_relational_database_alternatives_are_one_requirement_group():
     from app.analysis_v4 import _extract_jd_skills
 
     requirements = _extract_jd_skills(
-        "Required Qualifications:\\n"
+        "Required Qualifications:\n"
         "- Working knowledge of SQL and relational databases such as PostgreSQL or MySQL."
     )
     groups = [item for item in requirements if item["name"] == "relational databases"]
@@ -708,7 +708,7 @@ def test_v45_requirement_parser_keeps_join_and_indexing_as_distinct_evidence_gap
     from app.analysis_v4 import _extract_jd_skills
 
     requirements = _extract_jd_skills(
-        "Required Qualifications:\\n"
+        "Required Qualifications:\n"
         "- Understanding of database design, indexing, joins, and query optimization."
     )
     names = {item["name"] for item in requirements}
@@ -719,7 +719,7 @@ def test_v45_preferred_language_examples_remain_preferred_in_preferred_section()
     from app.analysis_v4 import _extract_jd_skills
 
     requirements = _extract_jd_skills(
-        "Preferred Qualifications:\\n"
+        "Preferred Qualifications:\n"
         "- Proficiency in at least one programming language, preferably Java or Kotlin."
     )
     assert all(
@@ -732,7 +732,7 @@ def test_v45_preferred_language_examples_remain_preferred_in_preferred_section()
 def test_v45_role_family_recognizes_sdet_without_promoting_it_to_software_developer_specialty():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Entry Level Software Engineer\\nRequired Qualifications:\\n- Python",
+        "Entry Level Software Engineer\nRequired Qualifications:\n- Python",
     )
     assert result["role_alignment"]["candidate_family"] == "software_engineering"
     assert result["role_alignment"]["candidate_specialization"] == "quality_engineering"
@@ -741,8 +741,8 @@ def test_v45_role_family_recognizes_sdet_without_promoting_it_to_software_develo
 def test_v45_internship_is_not_penalized_for_entry_level_zero_to_two_year_role():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Entry Level Software Engineer\\nExperience: 0-2 Years\\n"
-        "Required Qualifications:\\n- Python",
+        "Entry Level Software Engineer\nExperience: 0-2 Years\n"
+        "Required Qualifications:\n- Python",
     )
     assert result["seniority_alignment"]["assessment"] == "aligned"
 
@@ -755,8 +755,8 @@ def test_v45_qualification_bullets_do_not_leak_into_responsibility_matching():
     ])
     result = analyze_job_match_v4(
         resume,
-        "Required Qualifications:\\n- Python\\n- Java\\n"
-        "Preferred Qualifications:\\n- AWS",
+        "Required Qualifications:\n- Python\n- Java\n"
+        "Preferred Qualifications:\n- AWS",
     )
     assert result["assessment_coverage"]["responsibility_statements"] == 0
     assert result["responsibility_matches"] == []
@@ -771,7 +771,7 @@ def test_v45_responsibility_count_excludes_listed_only_candidates():
     ])
     result = analyze_job_match_v4(
         resume,
-        "Responsibilities:\\n"
+        "Responsibilities:\n"
         "- Follow software engineering best practices, including version control, testing, and documentation.",
     )
     assert result["assessment_coverage"]["responsibility_matches"] == 0
@@ -780,7 +780,7 @@ def test_v45_responsibility_count_excludes_listed_only_candidates():
 def test_v45_real_resume_backend_responsibility_prefers_project_over_monitoring_bullet():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\\n- Develop backend services, RESTful APIs, and application components.",
+        "Responsibilities:\n- Develop backend services, RESTful APIs, and application components.",
     )
     match = result["responsibility_matches"][0]
     assert "Node.js" in match["resume_excerpt"] or "Express.js" in match["resume_excerpt"]
@@ -789,7 +789,7 @@ def test_v45_real_resume_backend_responsibility_prefers_project_over_monitoring_
 def test_v45_real_resume_database_responsibility_does_not_use_gzip_bullet_as_direct_evidence():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\\n- Work with relational databases and write optimized SQL queries.",
+        "Responsibilities:\n- Work with relational databases and write optimized SQL queries.",
     )
     if result["responsibility_matches"]:
         match = result["responsibility_matches"][0]
@@ -800,7 +800,7 @@ def test_v45_real_resume_database_responsibility_does_not_use_gzip_bullet_as_dir
 def test_v45_real_resume_collaboration_responsibility_requires_explicit_collaboration_evidence():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\\n- Collaborate with product managers, QA engineers, and other developers.",
+        "Responsibilities:\n- Collaborate with product managers, QA engineers, and other developers.",
     )
     assert result["responsibility_matches"] == []
 
@@ -808,7 +808,7 @@ def test_v45_real_resume_collaboration_responsibility_requires_explicit_collabor
 def test_v45_real_resume_quality_best_practices_does_not_count_skills_list_as_demonstrated():
     result = analyze_job_match_v4(
         dakshta_resume(),
-        "Responsibilities:\\n"
+        "Responsibilities:\n"
         "- Follow software engineering best practices, including version control, testing, and documentation.",
     )
     assert result["responsibility_matches"] == []
