@@ -207,7 +207,11 @@ def _detect_skills(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for previous, current in zip(records, records[1:]):
         left = previous["text"].strip().lower()
         right = current["text"].strip().lower()
-        if (left, right) in continuations:
+        is_split_continuation = any(
+            left.endswith(first) and re.match(r"^" + re.escape(second) + r"\b", right)
+            for first, second in continuations
+        )
+        if is_split_continuation:
             scan_records.append((
                 previous["text"].strip() + " " + current["text"].strip(),
                 [previous["evidence_id"], current["evidence_id"]],
