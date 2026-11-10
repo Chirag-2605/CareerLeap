@@ -226,3 +226,84 @@ def test_v42_handles_collapsed_markdown_jd_headings_and_bullets():
     preferred = {item["name"] for item in parsed if item["classification"] == "preferred"}
     assert "java" in required
     assert "spring boot" in preferred
+
+
+def test_parser_recognizes_core_concepts_without_inflating_related_skills():
+    parsed = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills",
+        "Data Structures & Algorithms, Object-Oriented Design, Distributed Systems, API Development",
+        "Experience", "Software Engineer Intern",
+        "• Built REST APIs using Java for internal services.",
+    ])
+    by_name = {item["canonical_name"]: item for item in parsed["skills"]}
+    assert "data structures and algorithms" in by_name
+    assert "object-oriented programming" in by_name
+    assert "distributed systems" in by_name
+    assert "api development" in by_name
+    assert by_name["data structures and algorithms"]["listed_evidence_ids"]
+    assert by_name["api development"]["listed_evidence_ids"]
+    assert "http" not in by_name
+
+
+def test_explicit_or_requirements_are_grouped_and_any_alternative_satisfies():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "Java, PostgreSQL, Gradle",
+        "Experience", "Software Engineer Intern",
+        "• Built Java backend services using PostgreSQL and Gradle.",
+    ])
+    jd = (
+        "Entry Level Software Engineer\\nExperience: 0-2 Years\\n"
+        "Required Qualifications:\\n- Java or Kotlin\\n"
+        "- PostgreSQL or MySQL\\n- Gradle or Maven"
+    )
+    from app.analysis_v4 import _extract_jd_skills
+    requirements = _extract_jd_skills(jd)
+    groups = [item for item in requirements if item.get("alternatives")]
+    assert {item["name"] for item in groups} == {"programming_language", "database", "build_tool"}
+    assert len([item for item in requirements if item["classification"] == "required"]) == 3
+    result = analyze_job_match_v4(resume, jd)
+    assert result["missing_required_skills"] == []
+    assert len(result["matched_required_skills"]) == 3
+    assert all(item["status"] == "demonstrated" for item in result["skill_matches"])
+
+
+def test_listed_only_alternative_skills_remain_listed_not_demonstrated():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "Java, PostgreSQL, Gradle",
+        "Experience", "Software Engineer Intern",
+        "• Built a responsive React interface for internal users.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Required Qualifications:\\n- Java or Kotlin\\n- PostgreSQL or MySQL\\n- Gradle or Maven",
+    )
+    assert len(result["matched_required_skills"]) == 3
+    assert all(item["status"] == "listed" for item in result["skill_matches"])
+
+
+def test_responsibility_matching_uses_related_artifact_and_action_concepts():
+    resume = parse_lines([
+        "Alex Doe", "alex@example.com", "Skills", "React, TypeScript, SQL",
+        "Experience", "Software Engineer Intern",
+        "• Built a dynamic scalable UI using React and TypeScript, enabling 10+ datasets.",
+        "• Designed backend modules using Mustache templating to generate 30+ Athena SQL queries.",
+        "• Automated IAM roles, policies and S3 provisioning using Terraform.",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "Backend Engineer\\nResponsibilities:\\n"
+        "- Design, develop, test, and maintain reliable and scalable software applications.",
+    )
+    assert result["responsibility_matches"]
+    match = result["responsibility_matches"][0]
+    assert match["evidence_type"] in ("direct", "supporting")
+    assert len(match["evidence_ids"]) >= 1
+
+
+def test_internship_is_aligned_with_entry_role_when_jd_accepts_zero_to_two_years():
+    result = analyze_job_match_v4(
+        weak_resume(),
+        "Entry Level Software Engineer\\nExperience: 0-2 Years\\n"
+        "Required Qualifications:\\n- Java",
+    )
+    assert result["seniority_alignment"]["assessment"] == "aligned"
