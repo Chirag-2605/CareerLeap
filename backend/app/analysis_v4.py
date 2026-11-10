@@ -405,8 +405,9 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
         "mongodb": ("mongodb", "mongo db"),
         "machine learning": ("machine learning", "ml"),
         "scikit-learn": ("scikit-learn", "sklearn"),
-        "data structures and algorithms": ("data structures and algorithms", "data structures", "algorithms"),
-        "object-oriented programming": ("object-oriented programming", "object oriented programming", "oop"),
+        "data structures and algorithms": ("data structures and algorithms", "data structures & algorithms", "data structures", "algorithms", "dsa"),
+        "object-oriented programming": ("object-oriented programming", "object oriented programming", "object-oriented design", "object oriented design", "oop", "ood"),
+        "api development": ("api development", "api design", "api implementation"),
         "http": ("http", "http protocols"),
         "relational databases": ("relational databases", "relational database"),
         "database design": ("database design",),
@@ -500,6 +501,7 @@ def _extract_jd_lines(job_description: str) -> List[Dict[str, str]]:
     return output
 
 def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
+    """Extract canonical skills and collapse explicit OR phrases into one requirement."""
     aliases = _skill_aliases()
     found: Dict[str, Dict[str, Any]] = {}
     lines = _extract_jd_lines(job_description)
@@ -524,8 +526,41 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                     "name": canonical, "classification": classification,
                     "source_sentence": text, "line_index": index,
                 }
-    return sorted(found.values(), key=lambda item: item["name"])
 
+    # Collapse only explicit "A or B" alternatives from the same JD line.
+    alternative_patterns = (
+        ("programming_language", ("java", "kotlin")),
+        ("database", ("postgresql", "mysql")),
+        ("build_tool", ("gradle", "maven")),
+    )
+    groups = []
+    grouped_line_names = set()
+    for line_index, line in enumerate(lines):
+        lowered = _norm(line["text"])
+        for group_name, alternatives in alternative_patterns:
+            left, right = alternatives
+            pattern = r"\\b" + re.escape(left) + r"\\b\\s+or\\s+\\b" + re.escape(right) + r"\\b"
+            if not re.search(pattern, lowered):
+                continue
+            classification = line["classification"]
+            if classification not in ("required", "preferred"):
+                if any(re.search(cue, lowered) for cue in REQUIRED_CUES):
+                    classification = "required"
+                elif any(re.search(cue, lowered) for cue in PREFERRED_CUES):
+                    classification = "preferred"
+            if classification in ("required", "preferred"):
+                groups.append({
+                    "name": group_name, "classification": classification,
+                    "alternatives": list(alternatives), "match_rule": "any",
+                    "source_sentence": line["text"], "line_index": line_index,
+                })
+                grouped_line_names.add((line_index, left))
+                grouped_line_names.add((line_index, right))
+    individual = [
+        value for key, value in found.items()
+        if (value["line_index"], key) not in grouped_line_names
+    ]
+    return sorted(individual + groups, key=lambda item: item["name"])
 
 def _resume_skill_map(resume: Dict[str, Any]) -> Dict[str, Dict[str, List[str]]]:
     result = {}
