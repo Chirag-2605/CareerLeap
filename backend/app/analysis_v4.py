@@ -856,7 +856,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         for evidence in resume_evidence:
             raw_similarity = _responsibility_similarity(line, evidence["text"])
             is_listed = evidence.get("provenance") == "listed"
-            adjusted_similarity = raw_similarity * (0.55 if is_listed else 1.0)
+            adjusted_similarity = raw_similarity * (0.35 if is_listed else 1.0)
             ranked.append((adjusted_similarity, evidence))
         ranked.sort(key=lambda pair: pair[0], reverse=True)
         relevant = [(value, evidence) for value, evidence in ranked if value >= 0.18][:2]
