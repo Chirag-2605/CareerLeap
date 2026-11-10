@@ -252,9 +252,9 @@ def test_explicit_or_requirements_are_grouped_and_any_alternative_satisfies():
         "• Built Java backend services using PostgreSQL and Gradle.",
     ])
     jd = (
-        "Entry Level Software Engineer\\nExperience: 0-2 Years\\n"
-        "Required Qualifications:\\n- Java or Kotlin\\n"
-        "- PostgreSQL or MySQL\\n- Gradle or Maven"
+        "Entry Level Software Engineer\nExperience: 0-2 Years\n"
+        "Required Qualifications:\n- Java or Kotlin\n"
+        "- PostgreSQL or MySQL\n- Gradle or Maven"
     )
     from app.analysis_v4 import _extract_jd_skills
     requirements = _extract_jd_skills(jd)
@@ -275,7 +275,7 @@ def test_listed_only_alternative_skills_remain_listed_not_demonstrated():
     ])
     result = analyze_job_match_v4(
         resume,
-        "Required Qualifications:\\n- Java or Kotlin\\n- PostgreSQL or MySQL\\n- Gradle or Maven",
+        "Required Qualifications:\n- Java or Kotlin\n- PostgreSQL or MySQL\n- Gradle or Maven",
     )
     assert len(result["matched_required_skills"]) == 3
     assert all(item["status"] == "listed" for item in result["skill_matches"])
@@ -291,7 +291,7 @@ def test_responsibility_matching_uses_related_artifact_and_action_concepts():
     ])
     result = analyze_job_match_v4(
         resume,
-        "Backend Engineer\\nResponsibilities:\\n"
+        "Backend Engineer\nResponsibilities:\n"
         "- Design, develop, test, and maintain reliable and scalable software applications.",
     )
     assert result["responsibility_matches"]
@@ -303,7 +303,7 @@ def test_responsibility_matching_uses_related_artifact_and_action_concepts():
 def test_internship_is_aligned_with_entry_role_when_jd_accepts_zero_to_two_years():
     result = analyze_job_match_v4(
         weak_resume(),
-        "Entry Level Software Engineer\\nExperience: 0-2 Years\\n"
-        "Required Qualifications:\\n- Java",
+        "Entry Level Software Engineer\nExperience: 0-2 Years\n"
+        "Required Qualifications:\n- Java",
     )
     assert result["seniority_alignment"]["assessment"] == "aligned"
