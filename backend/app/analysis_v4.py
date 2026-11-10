@@ -655,7 +655,7 @@ RESPONSIBILITY_SYNONYMS = {
     "develop": "build_action", "developing": "build_action", "implemented": "build_action",
     "implement": "build_action", "created": "build_action", "creating": "build_action",
     "designed": "build_action", "design": "build_action", "engineered": "build_action",
-    "engineer": "build_action", "delivered": "build_action", "deliver": "build_action",
+    "delivered": "build_action", "deliver": "build_action",
     "maintained": "maintain", "maintaining": "maintain", "maintain": "maintain",
     "api": "endpoint", "apis": "endpoint", "restful": "rest",
     "service": "software_artifact", "services": "software_artifact",
@@ -668,7 +668,7 @@ RESPONSIBILITY_SYNONYMS = {
 }
 RESPONSIBILITY_CONCEPT_PATTERNS = {
     "software_delivery": (
-        r"\b(?:build|built|develop|developed|design|designed|implement|implemented|engineer|engineered|create|created|deliver|delivered)\b",
+        r"\b(?:build|built|develop|developed|design|designed|implement|implemented|engineered|create|created|deliver|delivered)\b",
         r"\b(?:software|application|applications|app|system|systems|dashboard|platform|service|services|module|modules|component|components|tool|tools|api|apis|code)\b",
     ),
     "frontend_development": (r"\b(?:frontend|front-end|ui|interface|dashboard|react|web app|user interface)\b",),
