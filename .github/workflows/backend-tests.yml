@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - test/matching-regression-matrix-v45
+      - feature/matching-accuracy-v45
   pull_request:
     branches:
       - main
