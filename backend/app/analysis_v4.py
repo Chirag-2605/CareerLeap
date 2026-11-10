@@ -589,7 +589,7 @@ def _similarity(left: str, right: str) -> float:
     return (2.0 * len(a & b)) / float(len(a) + len(b))
 RESPONSIBILITY_STOP_WORDS = STOP_WORDS | {
     "reliable", "reliability", "scalable", "scale", "clean", "efficient",
-    "maintainable", "application", "applications", "software", "strong",
+    "maintainable", "software", "strong",
     "good", "knowledge", "understanding", "ability", "including",
 }
 RESPONSIBILITY_SYNONYMS = {
@@ -781,9 +781,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     if candidate_role and target_role:
         assessed_role_signals.append(1.0 if candidate_role == target_role else 0.0)
     if candidate_level and target_level:
-        assessed_role_signals.append(
-            1.0 if LEVEL_RANK[candidate_level] >= LEVEL_RANK[target_level] else 0.0
-        )
+        assessed_role_signals.append(1.0 if seniority_assessment == "aligned" else 0.0)
     if assessed_role_signals:
         role_level_score = int(round(10 * sum(assessed_role_signals) / len(assessed_role_signals)))
 
