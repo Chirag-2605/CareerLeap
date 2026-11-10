@@ -437,12 +437,15 @@ def _skill_aliases() -> Dict[str, Tuple[str, ...]]:
     return aliases
 
 
-def _is_analyzer_payload(value: str) -> bool:
+def _is_analyzer_payload(value: Any) -> bool:
     """Identify serialized analyzer output accidentally supplied as a job description."""
-    try:
-        payload = json.loads(value)
-    except (TypeError, ValueError):
-        return False
+    if isinstance(value, str):
+        try:
+            payload = json.loads(value)
+        except (TypeError, ValueError):
+            return False
+    else:
+        payload = value
     if not isinstance(payload, dict):
         return False
     analyzer_keys = {
@@ -454,32 +457,39 @@ def _is_analyzer_payload(value: str) -> bool:
 
 
 def _clean_job_description(job_description: str) -> Tuple[str, List[str]]:
-    """Remove analyzer-result JSON contamination while preserving genuine JD text."""
+    """Remove analyzer-result JSON objects, including pretty-printed embedded blocks."""
     raw = str(job_description or "").strip()
     if _is_analyzer_payload(raw):
         return "", [
             "The supplied content is serialized analyzer output, not a readable job description."
         ]
-    kept = []
+
+    decoder = json.JSONDecoder()
+    cursor = 0
+    pieces = []
     removed = False
-    for line in raw.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
-        stripped = line.strip()
-        if not stripped:
-            kept.append(line)
+    while True:
+        start = raw.find("{", cursor)
+        if start < 0:
+            break
+        try:
+            payload, consumed = decoder.raw_decode(raw[start:])
+        except (TypeError, ValueError):
+            cursor = start + 1
             continue
-        if _is_analyzer_payload(stripped) or re.search(
-            r'"(?:score|breakdown|responsibility_matches|skill_matches|assessment_coverage|quality|job_match)"\s*:',
-            stripped,
-        ):
+        if _is_analyzer_payload(payload):
+            pieces.append(raw[cursor:start])
+            cursor = start + consumed
             removed = True
-            continue
-        kept.append(line)
+        else:
+            cursor = start + 1
+    pieces.append(raw[cursor:])
+    cleaned = "".join(pieces).strip()
     warnings = (
         ["Structured analyzer-result content was removed from the job description; review the remaining text."]
         if removed else []
     )
-    return "\n".join(kept).strip(), warnings
-
+    return cleaned, warnings
 
 def _normalize_jd_lines(job_description: str) -> List[str]:
     """Normalize common Markdown/plain-text JD formatting without discarding content."""
