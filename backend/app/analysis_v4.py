@@ -674,7 +674,7 @@ RESPONSIBILITY_CONCEPT_PATTERNS = {
     ),
     "frontend_development": (r"\b(?:frontend|front-end|ui|interface|dashboard|react|web app|user interface)\b",),
     "backend_development": (r"\b(?:backend|back-end|server-side|endpoint|endpoints|api|apis|node\.js|express(?:\.js)?|fastapi|django|flask|spring boot)\b",),
-    "testing_quality": (r"\b(?:tests?|testing|tested|unit tests?|integration tests?|automated tests?|test cases?|test suites?|validation|validated|p0 scenarios)\b",),
+    "testing_quality": (r"\b(?:test(?:s|ed|ing)?(?!\s+failures?)|unit tests?|integration tests?|automated tests?|test cases?|test suites?|validation|validat\w*|p0 scenarios)\b",),
     "diagnostics": (r"\b(?:debug|debugging|troubleshoot|troubleshooting|diagnos|diagnosis|root cause|failure analysis|crash|crashes|logs?|log analyzer|error analysis)\b",),
     "automation": (r"\b(?:automat|automation|automated|workflow|workflows|script|scripts|scheduled|orchestrat)\w*\b",),
     "data_persistence": (r"\b(?:database|databases|sql|mysql|postgresql|mongodb|dynamodb|storage|persistence|data store|queries)\b",),
@@ -740,7 +740,10 @@ def _responsibility_similarity(left: str, right: str) -> float:
     }
     required_gates = required & evidence_gates
     if required_gates and not (required_gates & evidence):
-        return 0.0
+        # Broad build/test/maintain duties can still receive partial credit for
+        # demonstrated delivery evidence even when the testing sub-part is absent.
+        if not ("software_delivery" in required and "software_delivery" in shared):
+            return 0.0
     concept_recall = len(shared) / float(len(required))
     left_tokens, right_tokens = _responsibility_tokens(left), _responsibility_tokens(right)
     lexical = len(left_tokens & right_tokens) / float(len(left_tokens)) if left_tokens else 0.0
