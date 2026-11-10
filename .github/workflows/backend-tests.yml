@@ -3,11 +3,12 @@ name: Backend tests
 on:
   push:
     branches:
-      - feature/matching-accuracy-v44
+      - test/matching-regression-matrix-v45
   pull_request:
     branches:
       - main
       - feature/matching-accuracy-v43
+      - feature/matching-accuracy-v44-final
 
 permissions:
   contents: read
