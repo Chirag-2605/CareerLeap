@@ -315,8 +315,8 @@ def analyze_quality(text: str) -> dict:
     readability = 10
     bullet_count = len(BULLET_RE.findall(text))
     recognized_sections = sum(1 for present in sections.values() if present)
-    replacement_chars = text.count("\\ufffd")
-    nonprintable_chars = sum(1 for char in text if ord(char) < 32 and char not in "\\n\\r\\t")
+    replacement_chars = text.count("\ufffd")
+    nonprintable_chars = sum(1 for char in text if ord(char) < 32 and char not in "\n\r\t")
     if len(lines) < 8:
         readability -= 3
         findings.append(_finding("low_line_structure", "Very little line structure was extracted", 3, "medium", None,
