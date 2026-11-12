@@ -6,20 +6,32 @@ from functools import lru_cache
 from fastapi import Header, HTTPException
 from .config import settings
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 @lru_cache(maxsize=1)
 def _firebase_app():
     import firebase_admin
     from firebase_admin import credentials
+
+    project_id = "careerleap-1730d"
+
     try:
         return firebase_admin.get_app()
     except ValueError:
         raw = settings.firebase_service_account_json
+
         if raw:
             cred = credentials.Certificate(json.loads(raw))
         else:
-            # Uses GOOGLE_APPLICATION_CREDENTIALS / application default credentials.
             cred = credentials.ApplicationDefault()
-        return firebase_admin.initialize_app(cred)
+
+        return firebase_admin.initialize_app(
+            cred,
+            options={"projectId": project_id}
+        )
 
 
 async def require_user(authorization: Optional[str] = Header(default=None)) -> dict:
@@ -35,4 +47,8 @@ async def require_user(authorization: Optional[str] = Header(default=None)) -> d
         decoded = auth.verify_id_token(token, app=_firebase_app(), check_revoked=True)
         return {"uid": decoded["uid"], "email": decoded.get("email")}
     except Exception:
-        raise HTTPException(status_code=401, detail="Your session is invalid or expired. Please sign in again.")
+        logger.exception("Firebase ID token verification failed")
+        raise HTTPException(
+            status_code=401,
+            detail="Your session is invalid or expired. Please sign in again."
+        )
