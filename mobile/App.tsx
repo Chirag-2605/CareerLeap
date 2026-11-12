@@ -95,7 +95,8 @@ export default function App() {
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!auth) { setAuthReady(true); return; }
+    const firebaseAuth = auth;
+    if (!firebaseAuth) { setAuthReady(true); return; }
     let mounted = true;
     let checking = false;
 
@@ -115,15 +116,15 @@ export default function App() {
         if (!Number.isFinite(authTime) || Date.now() - authTime >= SESSION_MAX_AGE_MS) {
           clearSessionTimer();
           if (mounted) setUser(null);
-          await signOut(auth);
+          await signOut(firebaseAuth);
           return;
         }
         const remaining = SESSION_MAX_AGE_MS - (Date.now() - authTime);
         clearSessionTimer();
         sessionTimer.current = setTimeout(async () => {
-          if (auth?.currentUser?.uid === candidate.uid) {
+          if (firebaseAuth.currentUser?.uid === candidate.uid) {
             setUser(null);
-            await signOut(auth);
+            await signOut(firebaseAuth);
           }
         }, remaining);
         if (mounted) setUser(candidate);
@@ -131,14 +132,14 @@ export default function App() {
         // Fail closed if the current session cannot be verified.
         clearSessionTimer();
         if (mounted) setUser(null);
-        if (auth?.currentUser?.uid === candidate.uid) await signOut(auth);
+        if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
       } finally {
         checking = false;
         if (mounted) setAuthReady(true);
       }
     };
 
-    const unsubscribe = onAuthStateChanged(auth, (candidate) => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, (candidate) => {
       clearSessionTimer();
       if (candidate) void validateSession(candidate);
       else {
@@ -147,7 +148,7 @@ export default function App() {
       }
     });
     const appStateSubscription = AppState.addEventListener("change", (state) => {
-      if (state === "active" && auth.currentUser) void validateSession(auth.currentUser);
+      if (state === "active" && firebaseAuth.currentUser) void validateSession(firebaseAuth.currentUser);
     });
     return () => {
       mounted = false;
