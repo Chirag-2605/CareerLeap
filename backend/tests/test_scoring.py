@@ -35,3 +35,36 @@ def test_quality_deductions_have_recommendations():
     result = analyze_quality("A short resume without sections or contact information.")
     assert result["findings"]
     assert all(f["recommendation"] for f in result["findings"])
+
+
+def test_job_match_includes_specific_edit_guidance_for_missing_skill():
+    resume = """
+Alex Doe
+alex@example.com
+Skills
+JavaScript, Python, SQL
+Experience
+Backend Developer
+- Built REST APIs using Python and PostgreSQL for internal tools.
+Education
+Bachelor of Technology, Example University, 2024
+"""
+    result = analyze_job_match(
+        resume,
+        "Required skills: Java and Python. Responsibilities include designing backend APIs and troubleshooting production issues.",
+    )
+    java = next(item for item in result["actionable_suggestions"] if item["code"] == "add_missing_skill_java")
+    assert java["where_to_edit"] == "Skills section"
+    assert java["target_line"]["text"] == "Skills"
+    assert "only if accurate" in java["safe_wording"]
+
+
+def test_job_match_guidance_avoids_generic_jd_fillers():
+    resume = "Skills\nJavaScript\nExperience\n- Built frontend components for an internal dashboard."
+    result = analyze_job_match(
+        resume,
+        "We require strong knowledge and experience designing, troubleshooting, analyzing and writing software.",
+    )
+    suggestions = result["actionable_suggestions"]
+    assert all("knowledge" not in item.get("what_is_missing", "").lower() for item in suggestions)
+    assert all("requirements" not in item.get("what_is_missing", "").lower() for item in suggestions)
