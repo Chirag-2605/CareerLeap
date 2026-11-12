@@ -144,6 +144,49 @@ def _actionable_job_suggestions(resume_text: str, missing_skills: list[str],
     return suggestions
 
 
+def _quality_actionable_suggestions(text: str, sections_present: dict) -> list[dict]:
+    sections = _section_line_map(text)
+    suggestions = []
+    if not sections_present.get("summary"):
+        experience_heading = next((item for item in sections.get("Experience", [])
+                                   if _norm(item["text"]).strip(": ") in SECTION_ALIASES["experience"]), None)
+        suggestions.append({
+            "code": "add_summary_section",
+            "priority": "low",
+            "title": "Add an optional, targeted professional summary",
+            "what_is_missing": "No clearly labelled summary was detected. This is optional; it is not a universal ATS requirement.",
+            "where_to_edit": "Below your contact details and before Experience",
+            "target_line": experience_heading,
+            "suggested_change": "Add 2–3 concise lines that state your target role, strongest relevant technical strengths, and one or two substantiated areas of experience. Avoid generic claims such as 'hard-working' or 'team player'.",
+            "safe_wording": "[Target role] with hands-on experience in [relevant technologies] through [internship/project]. Built or improved [specific system or outcome], with a focus on [role-relevant strength]. Replace every bracket with a fact already supported by your resume.",
+        })
+
+    weak_bullets = []
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if len(line.split()) < 6 or not BULLET_RE.match(line):
+            continue
+        clean = BULLET_RE.sub("", line).strip()
+        first = re.findall(r"[a-z]+", clean.lower())[:1]
+        vague = bool(first and first[0] in {"worked", "helped", "assisted", "involved", "responsible", "participated"})
+        has_metric = bool(METRIC_RE.search(clean))
+        if vague or (len(clean.split()) < 12 and not has_metric):
+            weak_bullets.append({"line": number, "text": clean[:260], "vague": vague, "metric": has_metric})
+    for item in weak_bullets[:3]:
+        suggestions.append({
+            "code": f"rewrite_bullet_line_{item['line']}",
+            "priority": "medium",
+            "title": f"Make the bullet on line {item['line']} more specific",
+            "what_is_missing": ("The bullet starts with a vague phrase and does not make your individual contribution clear."
+                                if item["vague"] else "The bullet describes work, but gives limited detail about the method, scope, or outcome."),
+            "where_to_edit": "Keep this bullet in its current section",
+            "target_line": {"line": item["line"], "text": item["text"]},
+            "suggested_change": "Rewrite this same bullet using: strong action verb + what you built/changed + how or with which technology + result or scale. Add a metric only when you can verify it.",
+            "safe_wording": "[Action verb] [specific component or task] using [technology/method], resulting in [verified outcome, scale, or improvement]. Do not invent a number if you do not have one.",
+        })
+    return suggestions
+
+
 def analyze_quality(text: str) -> dict:
     lines = _lines(text)
     lower = text.lower()
@@ -257,9 +300,11 @@ def analyze_quality(text: str) -> dict:
                   "deducted": labels[k][1]-earned[k]} for k in labels]
     findings.sort(key=lambda f: ({"high":0,"medium":1,"low":2}.get(f["severity"],3), -f["deduction"]))
     suggestions = [f["recommendation"] for f in findings[:6]]
+    actionable_suggestions = _quality_actionable_suggestions(text, sections)
     return {
         "score": total, "version": VERSION, "breakdown": breakdown,
         "findings": findings, "top_suggestions": suggestions,
+        "actionable_suggestions": actionable_suggestions,
         "detected_skills": detected_skills,
         "summary": _quality_summary(total),
     }
