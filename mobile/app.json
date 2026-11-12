@@ -9,7 +9,7 @@
       "backgroundColor": "#F7F8FA"
     },
     "android": {
-      "package": "com.yourcompany.resumeanalyzer",
+      "package": "com.chiragagrawal.careerleap",
       "adaptiveIcon": {
         "backgroundColor": "#F7F8FA"
       }
