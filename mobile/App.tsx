@@ -221,6 +221,18 @@ function ReportView({report,fileName,onBack}: any) {
         <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
       </View>)}
     </Card>}
+    {q.actionable_suggestions?.length > 0 && <Card>
+      <Text style={styles.cardTitle}>Specific resume edits</Text>
+      <Text style={styles.bodySmall}>Each suggestion points to a place in the extracted resume and gives you a safe structure to improve it.</Text>
+      {q.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "low" ? "OPTIONAL" : item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+        <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+      </View>)}
+    </Card>}
     <Card><Text style={styles.cardTitle}>Areas to strengthen</Text>
       {q.findings.length === 0 && <Text style={styles.bodySmall}>No major deductions were identified by this rubric.</Text>}
       {q.findings.map((f:any)=><Finding key={f.code} finding={f}/>)}
