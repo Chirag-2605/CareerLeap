@@ -292,7 +292,7 @@ def analyze_quality(text: str) -> dict:
     impact = min(15, impact)
     if len(metric_matches) < 2:
         findings.append(_finding("few_metrics", "Few measurable outcomes found", max(0, 15-impact), "high",
-                                 experience_lines[0] if experience_lines else None,
+                                 experience_bullets[0] if experience_bullets else None,
                                  "Where truthful, quantify outcomes: latency reduced, users supported, revenue, accuracy, time saved, or project scale."))
     if action_count < 3:
         findings.append(_finding("weak_action_verbs", "Limited action-led achievement statements", max(0, 7-action_count), "low", None,
