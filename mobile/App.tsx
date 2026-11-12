@@ -4,8 +4,6 @@ import {
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
 import {
   createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword,
   signOut, User
@@ -14,7 +12,6 @@ import { auth, firebaseConfigured } from "./src/firebase";
 import { analyzeResume } from "./src/api";
 import { DARK_THEME, LIGHT_THEME } from "./src/theme";
 
-WebBrowser.maybeCompleteAuthSession();
 
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -24,7 +21,7 @@ type Report = any;
 function firebaseAuthMessage(error: any) {
   const code = error?.code || "";
   if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") {
-    return "Firebase Authentication is not fully configured. In Firebase Console, open Authentication → Sign-in method and enable Email/Password (and Google if you use Google sign-in), then try again.";
+    return "Firebase Authentication is not fully configured. In Firebase Console, open Authentication → Sign-in method and enable Email/Password, then try again.";
   }
   if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") {
     return "The Firebase API key is invalid. Check EXPO_PUBLIC_FIREBASE_API_KEY in mobile/.env and restart Expo.";
@@ -88,12 +85,6 @@ export default function App() {
   const [fileName, setFileName] = useState("");
   const [selectedAsset, setSelectedAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [showScanner, setShowScanner] = useState(false);
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    scopes: ["openid", "profile", "email"],
-  });
 
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -160,18 +151,6 @@ export default function App() {
       appStateSubscription.remove();
     };
   }, []);
-
-  useEffect(() => {
-    const signInGoogle = async () => {
-      if (response?.type !== "success" || !response.authentication?.idToken || !auth) return;
-      try {
-        const { GoogleAuthProvider, signInWithCredential } = await import("firebase/auth");
-        const credential = GoogleAuthProvider.credential(response.authentication.idToken);
-        await signInWithCredential(auth, credential);
-      } catch (e:any) { Alert.alert("Google sign-in failed", firebaseAuthMessage(e)); }
-    };
-    signInGoogle();
-  }, [response]);
 
   const handleEmailAuth = async () => {
     if (!auth) return Alert.alert("Firebase not configured", "Add your Firebase settings to mobile/.env first.");
@@ -261,7 +240,6 @@ export default function App() {
           <Text style={styles.cardTitle}>{authMode === "login" ? "Welcome back" : "Create your account"}</Text>
           <Text style={styles.bodySmall}>Sign in to access your resume analysis workspace.</Text>
           {!firebaseConfigured && <Text style={styles.warning}>Firebase setup required. Add the values from mobile/.env.example to mobile/.env.</Text>}
-          <Button styles={styles} C={C} title="Continue with Google" onPress={() => promptAsync()} disabled={!request || !firebaseConfigured || busy}/>
           <View style={styles.separator}><View style={styles.rule}/><Text style={styles.muted}>OR CONTINUE WITH EMAIL</Text><View style={styles.rule}/></View>
           <Label styles={styles}>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor={C.placeholder} style={styles.input}/>
           <Label styles={styles}>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={styles.input}/>
