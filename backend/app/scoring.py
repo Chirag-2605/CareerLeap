@@ -310,25 +310,30 @@ def analyze_quality(text: str) -> dict:
                                  "Add your degree, institution, and graduation year (or expected graduation year)."))
     earned["education"] = min(10, education)
 
-    # ATS readability: 10
+    # ATS readability measures extraction and structural parseability, not resume
+    # quality or length. A short but cleanly extracted resume can still score well.
     readability = 10
-    if len(text) > 14000:
-        readability -= 2
-        findings.append(_finding("very_long_resume", "Resume text is unusually long", 2, "low", None,
-                                 "Consider keeping the resume concise and prioritizing the most relevant experience."))
+    bullet_count = len(BULLET_RE.findall(text))
+    recognized_sections = sum(1 for present in sections.values() if present)
+    replacement_chars = text.count("\\ufffd")
+    nonprintable_chars = sum(1 for char in text if ord(char) < 32 and char not in "\\n\\r\\t")
     if len(lines) < 8:
         readability -= 3
         findings.append(_finding("low_line_structure", "Very little line structure was extracted", 3, "medium", None,
-                                 "Use clear headings and separate bullets; avoid placing the entire resume in one text block."))
-    bullet_count = len(BULLET_RE.findall(text))
-    if bullet_count == 0:
+                                 "Check whether the PDF/DOCX text was extracted into separate lines. Avoid flattening the resume into one text block."))
+    if recognized_sections < 3:
         readability -= 2
-        findings.append(_finding("no_bullets", "No bullet formatting detected", 2, "medium", None,
-                                 "Use simple bullets for experience and project achievements; avoid complex text boxes and graphics."))
-    if len(text.split()) < 120:
-        readability -= 3
-        findings.append(_finding("short_resume", "Very little resume content detected", 3, "medium", None,
-                                 "Check that all relevant sections and details were included in the uploaded document."))
+        findings.append(_finding("few_recognized_sections", "Few standard resume headings were recognized", 2, "medium", None,
+                                 "Use conventional headings such as Experience, Education, Skills, and Projects so parsing systems can identify sections."))
+    if bullet_count == 0:
+        readability -= 1
+        findings.append(_finding("no_bullets", "No bullet formatting detected", 1, "low", None,
+                                 "Use simple bullets for experience and project achievements where appropriate."))
+    if replacement_chars or nonprintable_chars:
+        penalty = min(3, max(1, replacement_chars + nonprintable_chars))
+        readability -= penalty
+        findings.append(_finding("extraction_characters", "Some characters may not have extracted cleanly", penalty, "medium", None,
+                                 "Review the extracted text for replacement symbols or missing characters; check font embedding and PDF export settings."))
     earned["readability"] = max(0, readability)
 
     total = max(0, min(100, sum(earned.values())))
@@ -378,13 +383,43 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
     important = [w for w, _ in freq.most_common(12)]
     matched_terms = [w for w in important if re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", resume)]
     term_score = round(25 * len(matched_terms) / max(1, len(important)))
-    # Role alignment is evaluated independently from generic keyword coverage.
-    title_terms = [
-        w for w in ("engineer", "developer", "analyst", "designer", "manager",
-                    "architect", "scientist", "consultant")
-        if re.search(rf"\b{w}\b", job)
-    ]
-    title_score = 15 if not title_terms or any(w in resume for w in title_terms) else 5
+    # Role alignment must come from an actual resume role title, not from
+    # the target title repeating a generic word such as "engineer".
+    role_families = {
+        "frontend": ("frontend", "front end", "ui developer", "ui engineer"),
+        "backend": ("backend", "back end", "server-side developer", "server side developer"),
+        "full_stack": ("full stack", "fullstack"),
+        "data": ("data analyst", "data scientist", "data engineer", "business intelligence"),
+        "machine_learning": ("machine learning engineer", "ml engineer", "ai engineer"),
+        "design": ("ux designer", "ui designer", "product designer"),
+        "devops": ("devops", "site reliability engineer", "sre", "cloud engineer"),
+        "software_engineering": ("software engineer", "software developer", "software intern"),
+    }
+    def role_family(value: str):
+        found = [family for family, aliases in role_families.items()
+                 if any(re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", value)
+                        for alias in aliases)]
+        return found[0] if len(found) == 1 else None
+
+    experience_lines = _section_line_map(resume_text).get("Experience", [])
+    role_title_text = " ".join(
+        item["text"] for item in experience_lines
+        if item["text"] and not BULLET_RE.match(item["text"])
+        and len(item["text"].split()) >= 2
+    )
+    candidate_role = role_family(_norm(role_title_text))
+    target_role = role_family(job)
+    title_score = 0
+    role_assessment = "not_identified"
+    if candidate_role and target_role:
+        if candidate_role == target_role:
+            title_score, role_assessment = 15, "aligned"
+        elif candidate_role == "software_engineering" and target_role in {"frontend", "backend", "full_stack"}:
+            title_score, role_assessment = 6, "broadly_related"
+        elif target_role == "full_stack" and candidate_role in {"frontend", "backend"}:
+            title_score, role_assessment = 8, "partially_related"
+        else:
+            title_score, role_assessment = 0, "different"
     total = min(100, skill_score + term_score + title_score)
     findings = []
     if missing:
@@ -409,6 +444,11 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
             {"key":"role_alignment","label":"Role/title alignment","earned":title_score,"possible":15,"deducted":15-title_score},
         ],
         "matched_skills": matched, "missing_skills": missing, "findings": findings,
+        "role_alignment": {
+            "candidate_family": candidate_role,
+            "target_family": target_role,
+            "assessment": role_assessment,
+        },
         "actionable_suggestions": actionable_suggestions,
         "summary": (
             f"Matched {len(matched)} of {len(skills_in_job)} skills detected in the job description."
