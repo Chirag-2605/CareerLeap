@@ -18,6 +18,33 @@ WebBrowser.maybeCompleteAuthSession();
 
 type Report = any;
 
+const ROLE_TEMPLATES = [
+  {
+    title: "Software Engineer",
+    jd: `We are looking for a Software Engineer to design, develop, test, and maintain reliable software applications. You will collaborate with product managers, designers, and engineers to understand requirements and deliver maintainable solutions. Responsibilities include writing clean and efficient code, designing APIs and data models, debugging issues, reviewing code, improving application performance, and contributing to technical discussions. You should have a strong foundation in data structures, algorithms, object-oriented programming, and software engineering principles. Experience with one or more programming languages, databases, version control, testing, and building or integrating APIs is valuable. We value problem-solving ability, clear communication, ownership, and a willingness to learn.`,
+  },
+  {
+    title: "Frontend Engineer",
+    jd: `We are looking for a Frontend Engineer to build responsive, accessible, and user-friendly web applications. You will translate product and design requirements into reusable UI components, integrate frontend applications with backend APIs, and improve performance and usability. Responsibilities include developing and maintaining interfaces, managing application state, handling browser compatibility, writing maintainable code and tests, debugging production issues, and collaborating with design and backend teams. Strong JavaScript and HTML/CSS fundamentals are expected. Experience with React or another modern frontend framework, TypeScript, responsive design, REST APIs, Git, and frontend testing is useful. We value attention to detail, problem-solving, and a focus on user experience.`,
+  },
+  {
+    title: "Backend Engineer",
+    jd: `We are looking for a Backend Engineer to design, build, and maintain scalable and reliable services. You will develop APIs and backend components, work with databases and data models, integrate external systems, and help ensure application security, performance, and reliability. Responsibilities include writing maintainable code, debugging and resolving service issues, designing efficient queries, implementing tests, participating in code reviews, and contributing to system design discussions. Strong programming, data structures, algorithms, and database fundamentals are expected. Experience with Java, Kotlin, Python, Node.js, or similar languages; REST APIs; SQL or NoSQL databases; distributed systems; and cloud platforms is valuable. We value ownership, sound engineering judgment, and collaboration.`,
+  },
+  {
+    title: "Full Stack Developer",
+    jd: `We are looking for a Full Stack Developer to build and maintain end-to-end web applications. You will develop responsive frontend experiences, implement backend services and APIs, integrate databases, and collaborate with cross-functional teams to deliver product features. Responsibilities include translating requirements into technical solutions, building reusable UI components, designing data models, writing tests, debugging issues, reviewing code, and improving application performance. Strong programming fundamentals and experience with JavaScript or TypeScript are expected. Experience with React or a similar frontend framework, backend technologies such as Node.js, Java, or Python, REST APIs, databases, Git, and cloud services is useful. We value adaptability, communication, and an end-to-end approach to problem-solving.`,
+  },
+  {
+    title: "Machine Learning Engineer",
+    jd: `We are looking for a Machine Learning Engineer to develop, evaluate, and deploy data-driven solutions. You will work with engineers, data scientists, and product teams to translate business problems into measurable machine learning tasks. Responsibilities include preparing and analyzing datasets, training and evaluating models, building reproducible experiments, improving model performance, deploying inference workflows, and monitoring model behavior. Strong Python, programming, data structures, statistics, and machine learning fundamentals are expected. Experience with common ML frameworks, data processing, model evaluation, SQL, APIs, and cloud or MLOps tooling is valuable. We value experimental rigor, clear communication, and the ability to explain technical trade-offs.`,
+  },
+  {
+    title: "DevOps / Cloud Engineer",
+    jd: `We are looking for a DevOps / Cloud Engineer to improve the reliability, scalability, and delivery of software systems. You will work with development teams to automate infrastructure and deployment workflows, monitor services, and improve operational practices. Responsibilities include maintaining CI/CD pipelines, managing cloud resources, automating repeatable tasks, monitoring application health, troubleshooting incidents, and applying security and access-control best practices. Strong Linux, scripting, networking, and problem-solving fundamentals are expected. Experience with AWS or another cloud platform, Docker, Kubernetes, Terraform, Git, observability tools, and CI/CD systems is useful. We value ownership, operational discipline, and collaboration across engineering teams.`,
+  },
+];
+
 function Button({ title, onPress, secondary=false, disabled=false }: any) {
   return <Pressable disabled={disabled} onPress={onPress} style={({pressed}) => [styles.button, secondary && styles.buttonSecondary, disabled && {opacity:.55}, pressed && !disabled && styles.buttonPressed]}>
     <Text style={[styles.buttonText, secondary && {color:C.ink}]}>{title}</Text>
@@ -33,6 +60,8 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login"|"signup">("login");
   const [job, setJob] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  const [showRoleOptions, setShowRoleOptions] = useState(false);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Report|null>(null);
   const [fileName, setFileName] = useState("");
@@ -168,7 +197,32 @@ export default function App() {
             {fileName ? <Text style={styles.selectedFile} numberOfLines={2}>Selected: {fileName}</Text> : null}
           </View>
           <View style={styles.optionalHeader}><Label>Target job description</Label><Text style={styles.optionalTag}>OPTIONAL</Text></View>
-          <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Paste the job description to get a separate job-match assessment..." placeholderTextColor="#98A2B3" style={[styles.input,styles.textarea]}/>
+          <Text style={styles.bodySmall}>Choose a role to use a ready-made job description, or paste your own.</Text>
+          <Pressable
+            onPress={() => setShowRoleOptions((open) => !open)}
+            style={styles.roleDropdown}
+            accessibilityRole="button"
+            accessibilityLabel="Choose a predefined job role"
+          >
+            <Text style={[styles.roleDropdownText, !selectedRole && styles.rolePlaceholder]}>{selectedRole || "Select a role (optional)"}</Text>
+            <Text style={styles.roleDropdownChevron}>{showRoleOptions ? "▴" : "▾"}</Text>
+          </Pressable>
+          {showRoleOptions && <View style={styles.roleOptions}>
+            {ROLE_TEMPLATES.map((role) => <Pressable
+              key={role.title}
+              onPress={() => {
+                setJob(role.jd);
+                setSelectedRole(role.title);
+                setShowRoleOptions(false);
+              }}
+              style={styles.roleOption}
+            >
+              <Text style={styles.roleOptionText}>{role.title}</Text>
+              {selectedRole === role.title ? <Text style={styles.roleSelected}>SELECTED</Text> : null}
+            </Pressable>)}
+          </View>}
+          {selectedRole ? <Text style={styles.templateHint}>Using the {selectedRole} template. You can edit the job description below.</Text> : null}
+          <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Or paste a job description here..." placeholderTextColor="#98A2B3" style={[styles.input,styles.textarea]}/>
           <Text style={styles.bodySmall}>You can scan without a job description for a general resume-quality review, or add one for job-specific feedback.</Text>
           <Button title={busy ? "Scanning..." : "Scan"} onPress={scanResume} disabled={busy || !selectedAsset}/>
           {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
@@ -293,6 +347,13 @@ const styles = StyleSheet.create({
   selectedFile:{fontSize:11,lineHeight:17,color:C.green,fontWeight:"700",marginTop:12,textAlign:"center"},
   optionalHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:8},
   optionalTag:{fontSize:9,color:C.muted,letterSpacing:1,fontWeight:"800",marginTop:13},
+  roleDropdown:{minHeight:48,borderWidth:1,borderColor:"#DDE2EA",borderRadius:12,paddingHorizontal:14,marginTop:10,backgroundColor:"#FCFCFD",flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+  roleDropdownText:{fontSize:13,color:C.ink,fontWeight:"600"},rolePlaceholder:{color:"#98A2B3",fontWeight:"400"},
+  roleDropdownChevron:{fontSize:16,color:C.muted},
+  roleOptions:{borderWidth:1,borderColor:C.line,borderRadius:12,marginTop:6,overflow:"hidden",backgroundColor:C.white},
+  roleOption:{minHeight:44,paddingHorizontal:14,paddingVertical:12,borderBottomWidth:1,borderBottomColor:C.line,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
+  roleOptionText:{fontSize:13,color:C.ink,fontWeight:"600"},roleSelected:{fontSize:8,color:C.blue,fontWeight:"900",letterSpacing:.7},
+  templateHint:{fontSize:10,color:C.blue,marginTop:8,lineHeight:15},
   textarea:{height:116,paddingTop:13,textAlignVertical:"top"},
   privacyRow:{flexDirection:"row",alignItems:"flex-start",gap:8,marginTop:13},
   privacyIcon:{fontSize:17,color:C.green,fontWeight:"800",marginTop:-2},
