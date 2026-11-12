@@ -28,7 +28,6 @@ function Card({children}: any) { return <View style={styles.card}>{children}</Vi
 
 export default function App() {
   const [user, setUser] = useState<User|null>(null);
-  const [isGuest, setIsGuest] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,7 +46,7 @@ export default function App() {
 
   useEffect(() => {
     if (!auth) { setAuthReady(true); return; }
-    return onAuthStateChanged(auth, (u) => { setUser(u); if (u) setIsGuest(false); setAuthReady(true); });
+    return onAuthStateChanged(auth, (u) => { setUser(u); setAuthReady(true); });
   }, []);
 
   useEffect(() => {
@@ -75,7 +74,7 @@ export default function App() {
   };
 
   const pickAndAnalyze = async () => {
-    if (!user && !isGuest) return Alert.alert("Sign in required", "Please sign in or continue as a guest before scanning.");
+    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
     const picked = await DocumentPicker.getDocumentAsync({
       type: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
       copyToCacheDirectory: true,
@@ -102,11 +101,11 @@ export default function App() {
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
-      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : <View style={styles.status}><Text style={styles.statusText}>Guest mode</Text></View>}
+      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
 
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-      {!user && !isGuest ? <View>
+      {!user ? <View>
         <View style={styles.hero}>
           <View style={styles.heroAccent}><View style={styles.heroAccentDot}/><Text style={styles.heroAccentText}>CAREER CLARITY STARTS HERE</Text></View>
           <Text style={styles.heroTitle}>Put your best resume forward.</Text>
@@ -124,10 +123,6 @@ export default function App() {
           <Button title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
           <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
             <Text style={styles.linkCenter}>{authMode === "login" ? "New to CareerLeap? Create an account" : "Already have an account? Sign in"}</Text>
-          </Pressable>
-          <Pressable onPress={() => setIsGuest(true)} style={styles.guestSwitch}>
-            <Text style={styles.linkCenter}>Continue as guest</Text>
-            <Text style={styles.guestHint}>Try resume analysis without creating an account</Text>
           </Pressable>
         </Card>
       </View> : report ? <ReportView report={report} fileName={fileName} onBack={reset}/> : <View>
@@ -233,7 +228,7 @@ const styles = StyleSheet.create({
   separator:{flexDirection:"row",alignItems:"center",gap:10,marginVertical:19},rule:{height:1,backgroundColor:C.line,flex:1},
   muted:{fontSize:10,color:C.muted},label:{fontSize:12,fontWeight:"700",color:C.ink,marginTop:15,marginBottom:8},
   input:{borderWidth:1,borderColor:"#DDE2EA",borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:14,color:C.ink,backgroundColor:"#FCFCFD"},
-  authSwitch:{paddingVertical:13},guestSwitch:{paddingTop:9,paddingBottom:3,alignItems:"center"},guestHint:{fontSize:10,color:C.muted,marginTop:5},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
+  authSwitch:{paddingVertical:13},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
   warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:"#FFF8EB",padding:10,borderRadius:9},
   rowBetween:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   newTag:{backgroundColor:C.blueSoft,color:C.blue,fontWeight:"800",fontSize:9,letterSpacing:1,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden"},
