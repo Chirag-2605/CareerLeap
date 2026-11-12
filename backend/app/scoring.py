@@ -382,7 +382,7 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
     title_terms = [
         w for w in ("engineer", "developer", "analyst", "designer", "manager",
                     "architect", "scientist", "consultant")
-        if re.search(rf"\\b{w}\\b", job)
+        if re.search(rf"\b{w}\b", job)
     ]
     title_score = 15 if not title_terms or any(w in resume for w in title_terms) else 5
     total = min(100, skill_score + term_score + title_score)
