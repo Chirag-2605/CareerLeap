@@ -97,7 +97,11 @@ export default function App() {
   if (!authReady) return <SafeAreaView style={styles.center}><ActivityIndicator color={C.blue}/></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}>
+<<<<<<< Updated upstream
     <StatusBar barStyle="dark-content"/>
+=======
+    <StatusBar barStyle="dark-content" />
+>>>>>>> Stashed changes
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
