@@ -17,6 +17,20 @@ import { C } from "./src/theme";
 WebBrowser.maybeCompleteAuthSession();
 
 type Report = any;
+function firebaseAuthMessage(error: any) {
+  const code = error?.code || "";
+  if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") {
+    return "Firebase Authentication is not fully configured. In Firebase Console, open Authentication → Sign-in method and enable Email/Password (and Google if you use Google sign-in), then try again.";
+  }
+  if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") {
+    return "The Firebase API key is invalid. Check EXPO_PUBLIC_FIREBASE_API_KEY in mobile/.env and restart Expo.";
+  }
+  if (code === "auth/network-request-failed") {
+    return "Couldn't reach Firebase. Check your internet connection and try again.";
+  }
+  return error?.message || "Please try again.";
+}
+
 
 const ROLE_TEMPLATES = [
   {
@@ -86,7 +100,7 @@ export default function App() {
         const { GoogleAuthProvider, signInWithCredential } = await import("firebase/auth");
         const credential = GoogleAuthProvider.credential(response.authentication.idToken);
         await signInWithCredential(auth, credential);
-      } catch (e:any) { Alert.alert("Google sign-in failed", e.message || "Please try again."); }
+      } catch (e:any) { Alert.alert("Google sign-in failed", firebaseAuthMessage(e)); }
     };
     signInGoogle();
   }, [response]);
@@ -99,7 +113,7 @@ export default function App() {
       if (authMode === "login") await signInWithEmailAndPassword(auth, email.trim(), password);
       else await createUserWithEmailAndPassword(auth, email.trim(), password);
       setPassword("");
-    } catch (e:any) { Alert.alert("Authentication failed", e.message || "Please try again."); }
+    } catch (e:any) { Alert.alert("Authentication failed", firebaseAuthMessage(e)); }
     finally { setBusy(false); }
   };
 
