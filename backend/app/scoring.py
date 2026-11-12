@@ -378,7 +378,12 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
     important = [w for w, _ in freq.most_common(12)]
     matched_terms = [w for w in important if re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", resume)]
     term_score = round(25 * len(matched_terms) / max(1, len(important)))
-    title_terms = [w for w in important[:5] if w in {"engineer","developer","analyst","designer","manager","architect","scientist","consultant"}]
+    # Role alignment is evaluated independently from generic keyword coverage.
+    title_terms = [
+        w for w in ("engineer", "developer", "analyst", "designer", "manager",
+                    "architect", "scientist", "consultant")
+        if re.search(rf"\\b{w}\\b", job)
+    ]
     title_score = 15 if not title_terms or any(w in resume for w in title_terms) else 5
     total = min(100, skill_score + term_score + title_score)
     findings = []
