@@ -4,11 +4,9 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:8000";
 
 export async function analyzeResume(uri: string, name: string, mimeType: string, jobDescription: string) {
   const currentUser = auth?.currentUser;
-  const headers: Record<string, string> = {};
-  if (currentUser) {
-    const token = await currentUser.getIdToken();
-    headers.Authorization = `Bearer ${token}`;
-  }
+  if (!currentUser) throw new Error("Please sign in before analyzing a resume.");
+  const token = await currentUser.getIdToken();
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
   const form = new FormData();
   form.append("file", { uri, name, type: mimeType } as any);
