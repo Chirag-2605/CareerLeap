@@ -263,8 +263,8 @@ export default function App() {
           {!firebaseConfigured && <Text style={styles.warning}>Firebase setup required. Add the values from mobile/.env.example to mobile/.env.</Text>}
           <Button styles={styles} C={C} title="Continue with Google" onPress={() => promptAsync()} disabled={!request || !firebaseConfigured || busy}/>
           <View style={styles.separator}><View style={styles.rule}/><Text style={styles.muted}>OR CONTINUE WITH EMAIL</Text><View style={styles.rule}/></View>
-          <Label styles={styles}>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor=C.placeholder style={styles.input}/>
-          <Label styles={styles}>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor=C.placeholder style={styles.input}/>
+          <Label styles={styles}>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor={C.placeholder} style={styles.input}/>
+          <Label styles={styles}>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={styles.input}/>
           {authMode === "signup" && <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, a number and a special character.</Text>}
           <Button styles={styles} C={C} title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
           <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
@@ -312,7 +312,7 @@ export default function App() {
             </Pressable>)}
           </View>}
           {selectedRole ? <Text style={styles.templateHint}>Using the {selectedRole} template. You can edit the job description below.</Text> : null}
-          <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Or paste a job description here..." placeholderTextColor=C.placeholder style={[styles.input,styles.textarea]}/>
+          <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Or paste a job description here..." placeholderTextColor={C.placeholder} style={[styles.input,styles.textarea]}/>
           <Text style={styles.bodySmall}>You can scan without a job description for a general resume-quality review, or add one for job-specific feedback.</Text>
           <Button styles={styles} C={C} title={busy ? "Scanning..." : "Scan"} onPress={scanResume} disabled={busy || !selectedAsset}/>
           {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
