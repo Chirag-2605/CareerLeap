@@ -36,6 +36,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Report|null>(null);
   const [fileName, setFileName] = useState("");
+  const [selectedAsset, setSelectedAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [showScanner, setShowScanner] = useState(false);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
@@ -73,35 +74,57 @@ export default function App() {
     finally { setBusy(false); }
   };
 
-  const pickAndAnalyze = async () => {
+  const pickResume = async () => {
     if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
-    const picked = await DocumentPicker.getDocumentAsync({
-      type: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
-      copyToCacheDirectory: true,
-    });
-    if (picked.canceled || !picked.assets?.[0]) return;
-    const asset = picked.assets[0];
-    setFileName(asset.name);
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        copyToCacheDirectory: true,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const asset = picked.assets[0];
+      setSelectedAsset(asset);
+      setFileName(asset.name);
+      setReport(null);
+    } catch (e: any) {
+      Alert.alert("Couldn't select resume", e.message || "Please try another file.");
+    }
+  };
+
+  const scanResume = async () => {
+    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
+    if (!selectedAsset) return Alert.alert("Choose a resume", "Select a PDF or DOCX before scanning.");
     setBusy(true);
     setReport(null);
     try {
-      const result = await analyzeResume(asset.uri, asset.name, asset.mimeType || "application/octet-stream", job);
+      const result = await analyzeResume(
+        selectedAsset.uri,
+        selectedAsset.name,
+        selectedAsset.mimeType || "application/octet-stream",
+        job,
+        selectedAsset.file || null
+      );
       setReport(result);
       setShowScanner(false);
-    } catch (e:any) { Alert.alert("Couldn't analyze resume", e.message || "Please try another file."); }
-    finally { setBusy(false); }
+    } catch (e: any) {
+      Alert.alert("Couldn't analyze resume", e.message || "Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const reset = () => { setReport(null); setJob(""); setFileName(""); setShowScanner(false); };
+  const reset = () => {
+    setReport(null);
+    setJob("");
+    setFileName("");
+    setSelectedAsset(null);
+    setShowScanner(false);
+  };
 
   if (!authReady) return <SafeAreaView style={styles.center}><ActivityIndicator color={C.blue}/></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}>
-<<<<<<< Updated upstream
-    <StatusBar barStyle="dark-content"/>
-=======
-    <StatusBar barStyle="dark-content" />
->>>>>>> Stashed changes
+    <StatusBar barStyle="dark-content" backgroundColor={C.soft}/>
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
@@ -141,11 +164,14 @@ export default function App() {
             <View style={styles.uploadIconWrap}><Text style={styles.uploadIcon}>↑</Text></View>
             <Text style={styles.uploadTitle}>Upload your resume</Text>
             <Text style={styles.muted}>PDF or DOCX · Maximum 8 MB</Text>
-            <Button title={busy ? "Analyzing..." : "Choose a file"} onPress={pickAndAnalyze} disabled={busy}/>
-            {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
+            <Button title={fileName ? "Change resume" : "Choose a file"} onPress={pickResume} disabled={busy}/>
+            {fileName ? <Text style={styles.selectedFile} numberOfLines={2}>Selected: {fileName}</Text> : null}
           </View>
           <View style={styles.optionalHeader}><Label>Target job description</Label><Text style={styles.optionalTag}>OPTIONAL</Text></View>
           <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Paste the job description to get a separate job-match assessment..." placeholderTextColor="#98A2B3" style={[styles.input,styles.textarea]}/>
+          <Text style={styles.bodySmall}>You can scan without a job description for a general resume-quality review, or add one for job-specific feedback.</Text>
+          <Button title={busy ? "Scanning..." : "Scan"} onPress={scanResume} disabled={busy || !selectedAsset}/>
+          {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
           <View style={styles.privacyRow}><Text style={styles.privacyIcon}>⌑</Text><Text style={styles.privacy}>Your scan isn't saved to history. The resume is processed to generate this report and is not retained by this V1 app.</Text></View>
         </Card>
         <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>A clearer view of your resume</Text><Text style={styles.bodySmall}>Useful feedback, without the guesswork.</Text></View>
@@ -240,6 +266,7 @@ const styles = StyleSheet.create({
   uploadIconWrap:{width:46,height:46,borderRadius:15,backgroundColor:C.blueSoft,alignItems:"center",justifyContent:"center",marginBottom:10},
   uploadIcon:{fontSize:26,color:C.blue,fontWeight:"500",marginTop:-3},
   uploadTitle:{fontSize:15,fontWeight:"800",color:C.ink,marginBottom:5},
+  selectedFile:{fontSize:11,lineHeight:17,color:C.green,fontWeight:"700",marginTop:12,textAlign:"center"},
   optionalHeader:{flexDirection:"row",alignItems:"center",justifyContent:"space-between",marginTop:8},
   optionalTag:{fontSize:9,color:C.muted,letterSpacing:1,fontWeight:"800",marginTop:13},
   textarea:{height:116,paddingTop:13,textAlignVertical:"top"},
