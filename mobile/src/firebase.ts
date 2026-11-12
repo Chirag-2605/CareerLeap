@@ -8,7 +8,10 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+const configured = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.authDomain &&
+  firebaseConfig.projectId && firebaseConfig.appId
+);
 export const firebaseApp = configured
   ? (getApps().length ? getApps()[0] : initializeApp(firebaseConfig))
   : null;
