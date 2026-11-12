@@ -18,7 +18,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s]).{8,}$/;
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
 
 type Report = any;
 function firebaseAuthMessage(error: any) {
