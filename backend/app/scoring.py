@@ -62,6 +62,88 @@ def _finding(code, title, deduction, severity, evidence, recommendation):
     return {"code": code, "title": title, "deduction": deduction, "severity": severity,
             "evidence": evidence[:220] if evidence else None, "recommendation": recommendation}
 
+
+
+JD_GENERIC_TERMS = {
+    "requirement", "requirements", "design", "designing", "troubleshoot",
+    "troubleshooting", "knowledge", "analyze", "analyzing", "analysis",
+    "write", "writing", "communication", "ability", "experience", "work",
+    "working", "team", "responsibility", "responsibilities", "skill", "skills",
+    "strong", "good", "understanding", "develop", "development", "support",
+    "maintain", "maintenance", "related", "including", "various", "using",
+}
+
+
+def _section_line_map(text: str) -> dict:
+    """Map extracted resume section names to their 1-based source line numbers."""
+    current = "Header"
+    result = {}
+    for number, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        normalized = _norm(line).strip(": ")
+        matched = next((key for key, aliases in SECTION_ALIASES.items()
+                        if normalized in aliases), None)
+        if matched:
+            current = matched.title()
+        result.setdefault(current, []).append({"line": number, "text": line})
+    return result
+
+
+def _find_resume_lines(text: str, terms: list[str], limit: int = 2) -> list:
+    matches = []
+    for number, line in enumerate(text.splitlines(), 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        normalized = _norm(stripped)
+        if any(re.search(rf"(?<![a-z0-9]){re.escape(term)}(?![a-z0-9])", normalized)
+               for term in terms):
+            matches.append({"line": number, "text": stripped[:260]})
+    return matches[:limit]
+
+
+def _actionable_job_suggestions(resume_text: str, missing_skills: list[str],
+                                missing_terms: list[str]) -> list[dict]:
+    sections = _section_line_map(resume_text)
+    skills_section = sections.get("Skills", [])
+    experience_section = sections.get("Experience", [])
+    project_section = sections.get("Projects", [])
+    suggestions = []
+
+    for skill in missing_skills[:8]:
+        suggestions.append({
+            "code": "add_missing_skill_" + re.sub(r"[^a-z0-9]+", "_", skill).strip("_"),
+            "priority": "high",
+            "title": f"Java is not evidenced in your resume" if skill == "java" else f"{skill.title()} is not evidenced in your resume",
+            "what_is_missing": f"The job description asks for {skill}, but the resume text contains no direct evidence of it.",
+            "where_to_edit": "Skills section" if skills_section else "Add a Skills section",
+            "target_line": ({"line": skills_section[0]["line"], "text": skills_section[0]["text"]}
+                           if skills_section else None),
+            "suggested_change": f"If you have genuinely used {skill}, list it under the relevant technical skills category. If you used it in a project or role, add it to that specific bullet instead of listing it without evidence.",
+            "safe_wording": f"Skills: ... | {skill.title()} | ... (include only if accurate)",
+            "resume_evidence": _find_resume_lines(resume_text, [skill]),
+        })
+
+    generic_to_ignore = JD_GENERIC_TERMS | {"java", "javascript", "engineer", "developer"}
+    useful_terms = [term for term in missing_terms if term not in generic_to_ignore]
+    if useful_terms:
+        target = experience_section or project_section or skills_section
+        section_name = "Experience" if experience_section else "Projects" if project_section else "Skills"
+        target_line = next((item for item in target if len(item["text"].split()) >= 7), None)
+        suggestions.append({
+            "code": "jd_language_gaps",
+            "priority": "medium",
+            "title": "Mirror specific job language where your experience supports it",
+            "what_is_missing": "These more specific terms from the job description were not found: " + ", ".join(useful_terms[:6]) + ".",
+            "where_to_edit": f"{section_name} section" if target else "Relevant Experience or Projects bullet",
+            "target_line": target_line,
+            "suggested_change": "Choose the closest existing bullet and add only the missing technical concept or responsibility if it accurately describes what you did. Do not paste a keyword list into the resume.",
+            "safe_wording": "Use the employer's exact term in a sentence describing your own action, the technical method, and the outcome. Keep the original facts and metrics unchanged.",
+            "resume_evidence": [],
+        })
+    return suggestions
+
+
 def analyze_quality(text: str) -> dict:
     lines = _lines(text)
     lower = text.lower()
@@ -215,10 +297,12 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
         findings.append({"code":"matched_job_skills","title":"Relevant skills detected","severity":"low",
                          "evidence":", ".join(matched[:12]),
                          "recommendation":"Keep these skills visible and reinforce the most important ones with examples in your experience or projects."})
+    missing_terms = [w for w in important if w not in matched_terms]
     if len(matched_terms) < len(important) * 0.5:
         findings.append({"code":"keyword_coverage","title":"Some job-description terminology is missing","severity":"medium",
-                         "evidence":", ".join([w for w in important if w not in matched_terms][:8]),
-                         "recommendation":"Use the employer's terminology where it accurately describes your experience. Avoid keyword stuffing."})
+                         "evidence":", ".join(missing_terms[:8]),
+                         "recommendation":"Review the specific missing terms below and add only those that accurately describe your work."})
+    actionable_suggestions = _actionable_job_suggestions(resume_text, missing, missing_terms)
     return {
         "score": total, "version": MATCH_VERSION,
         "breakdown": [
@@ -227,5 +311,6 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
             {"key":"role_alignment","label":"Role/title alignment","earned":title_score,"possible":15,"deducted":15-title_score},
         ],
         "matched_skills": matched, "missing_skills": missing, "findings": findings,
+        "actionable_suggestions": actionable_suggestions,
         "summary": f"Matched {len(matched)} of {len(skills_in_job)} skills detected in the job description."
     }
