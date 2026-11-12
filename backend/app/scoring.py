@@ -2,14 +2,14 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-VERSION = "quality-v1"
-MATCH_VERSION = "match-v1"
+VERSION = "quality-v2"
+MATCH_VERSION = "match-v2"
 
 SECTION_ALIASES = {
     "summary": ["summary", "professional summary", "profile", "objective", "career objective"],
     "experience": ["experience", "work experience", "professional experience", "employment", "internship"],
     "education": ["education", "academic background", "qualifications"],
-    "skills": ["skills", "technical skills", "core competencies", "competencies"],
+    "skills": ["skills", "my skills", "technical skills", "key skills", "core competencies", "competencies", "skill set"],
     "projects": ["projects", "personal projects", "academic projects"],
     "certifications": ["certifications", "certificates", "licenses"],
 }
@@ -71,6 +71,7 @@ JD_GENERIC_TERMS = {
     "working", "team", "responsibility", "responsibilities", "skill", "skills",
     "strong", "good", "understanding", "develop", "development", "support",
     "maintain", "maintenance", "related", "including", "various", "using",
+    "looking", "reliable", "code", "test", "testing", "engineer", "developer",
 }
 
 
@@ -224,22 +225,64 @@ def analyze_quality(text: str) -> dict:
                                  "Add a focused skills section containing tools and competencies you can demonstrate."))
     earned["skills"] = skills_score
 
-    # Experience: 25
-    experience_lines = [ln for ln in lines if len(ln.split()) >= 5 and
-                        (re.search(r"\b(built|developed|designed|implemented|managed|worked|led|created|optimized|engineered|intern)\b", ln, re.I)
-                         or BULLET_RE.match(ln))]
-    exp_score = 0
-    if sections["experience"]: exp_score += 8
-    if experience_lines: exp_score += min(10, len(experience_lines) * 2)
-    if re.search(r"\b(20\d{2}|19\d{2})\b", text): exp_score += 3
-    if re.search(r"\b(intern|engineer|developer|analyst|manager|designer|consultant|lead)\b", text, re.I): exp_score += 4
+    # Experience: 25. Score only content inside the Experience section.
+    experience_items = _section_line_map(text).get("Experience", [])
+    experience_content = [
+        item["text"] for item in experience_items
+        if item["text"] and _norm(item["text"]).strip(": ") not in SECTION_ALIASES["experience"]
+    ]
+    experience_bullets = [
+        BULLET_RE.sub("", line).strip()
+        for line in experience_content if BULLET_RE.match(line)
+    ]
+    experience_roles = [
+        line for line in experience_content
+        if not BULLET_RE.match(line) and len(line.split()) >= 2
+    ]
+    exp_score = 5 if sections["experience"] else 0
+
+    # Role/employer/date context: do not award these points for dates elsewhere.
+    has_role_context = any(
+        re.search(r"\b(intern|engineer|developer|analyst|manager|designer|consultant|lead)\b", line, re.I)
+        for line in experience_roles
+    )
+    has_experience_date = any(re.search(r"\b(20\d{2}|19\d{2})\b", line) for line in experience_roles)
+    if has_role_context:
+        exp_score += 2
+    if has_experience_date:
+        exp_score += 2
+
+    # Reward specific, action-led bullets rather than merely counting every bullet.
+    bullet_quality = 0
+    for bullet in experience_bullets:
+        words = len(bullet.split())
+        starts_with_action = bool(re.match(
+            r"^(built|developed|designed|implemented|managed|led|created|optimized|automated|delivered|launched|reduced|increased|integrated|analyzed|migrated|deployed|engineered)\b",
+            bullet, re.I
+        ))
+        has_technical_detail = _has_any(bullet, SKILL_TERMS)
+        has_outcome = bool(METRIC_RE.search(bullet)) or bool(re.search(
+            r"\b(improv(ed|ement)|reduc(ed|tion)|increas(ed|e)|sav(ed|ing)|support(ed)?|serv(ed|ing))\b",
+            bullet, re.I
+        ))
+        bullet_quality += int(starts_with_action) + int(has_technical_detail) + int(words >= 10 or has_outcome)
+    exp_score += min(12, bullet_quality)
+
+    # Distinct outcome evidence in this section contributes at most four points.
+    exp_metrics = sum(len(METRIC_RE.findall(bullet)) for bullet in experience_bullets)
+    exp_score += min(4, exp_metrics * 2)
     exp_score = min(25, exp_score)
+
     if not sections["experience"]:
-        findings.append(_finding("experience_missing", "Experience section is missing or unclear", 8, "high", None, "Add an Experience section with role, organization, dates, and achievement-focused bullets."))
-    elif len(experience_lines) < 3:
-        findings.append(_finding("thin_experience", "Few detailed experience bullets detected", max(0, 18-exp_score), "medium",
-                                 experience_lines[0] if experience_lines else None,
-                                 "Expand each relevant role with 2–4 concise bullets describing your contribution and outcome."))
+        findings.append(_finding("experience_missing", "Experience section is missing or unclear", 5, "high", None, "Add an Experience section with role, organization, dates, and achievement-focused bullets."))
+    elif not experience_bullets:
+        findings.append(_finding("thin_experience", "Few detailed experience bullets detected", max(0, 20-exp_score), "medium",
+                                 experience_roles[0] if experience_roles else None,
+                                 "Add 2–4 bullets under each role describing your own contribution, technical approach, and outcome."))
+    elif exp_score < 17:
+        findings.append(_finding("thin_experience", "Experience bullets need more specific evidence", 25-exp_score, "medium",
+                                 experience_bullets[0] if experience_bullets else None,
+                                 "Strengthen bullets with your action, the component or task, relevant technologies, and a verified outcome or scope."))
     earned["experience"] = exp_score
 
     # Impact: 15
@@ -324,7 +367,12 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
     matched = [s for s in skills_in_job if re.search(rf"(?<![a-z0-9]){re.escape(s)}(?![a-z0-9])", resume)]
     missing = [s for s in skills_in_job if s not in matched]
     skill_score = round(60 * len(matched) / max(1, len(skills_in_job))) if skills_in_job else 30
-    stop = {"the","and","for","with","you","will","our","are","this","that","from","your","have","has","who","all","can","not","job","role","team","work","years","year","experience","ability","strong","good"}
+    stop = JD_GENERIC_TERMS | {
+        "the", "and", "for", "with", "you", "will", "our", "are", "this", "that",
+        "from", "your", "have", "has", "who", "all", "can", "not", "job", "role",
+        "team", "work", "years", "year", "looking", "reliable", "code", "test",
+        "testing", "engineer", "developer",
+    }
     words = [w for w in re.findall(r"[a-z][a-z0-9+#.]{2,}", job) if w not in stop]
     freq = Counter(words)
     important = [w for w, _ in freq.most_common(12)]
@@ -357,5 +405,9 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
         ],
         "matched_skills": matched, "missing_skills": missing, "findings": findings,
         "actionable_suggestions": actionable_suggestions,
-        "summary": f"Matched {len(matched)} of {len(skills_in_job)} skills detected in the job description."
+        "summary": (
+            f"Matched {len(matched)} of {len(skills_in_job)} skills detected in the job description."
+            if skills_in_job else
+            "No recognized technical skills were detected in the job description; skill coverage uses a neutral baseline."
+        )
     }
