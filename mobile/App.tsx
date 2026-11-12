@@ -209,6 +209,18 @@ function ReportView({report,fileName,onBack}: any) {
       {j.missing_skills?.length > 0 && <><Text style={styles.subhead}>Not detected in your resume</Text><View style={styles.skillWrap}>{j.missing_skills.map((s:string)=><Text key={s} style={styles.missingSkill}>{s}</Text>)}</View></>}
       {j.matched_skills?.length > 0 && <><Text style={styles.subhead}>Evidence detected</Text><View style={styles.skillWrap}>{j.matched_skills.map((s:string)=><Text key={s} style={styles.matchedSkill}>{s}</Text>)}</View></>}
     </Card>}
+    {j?.actionable_suggestions?.length > 0 && <Card>
+      <Text style={styles.cardTitle}>How to improve for this role</Text>
+      <Text style={styles.bodySmall}>Specific edits based on gaps between the job description and your resume. Add a skill only if you can support it with real experience.</Text>
+      {j.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+        <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>CURRENT RESUME LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+      </View>)}
+    </Card>}
     <Card><Text style={styles.cardTitle}>Areas to strengthen</Text>
       {q.findings.length === 0 && <Text style={styles.bodySmall}>No major deductions were identified by this rubric.</Text>}
       {q.findings.map((f:any)=><Finding key={f.code} finding={f}/>)}
@@ -286,6 +298,14 @@ const styles = StyleSheet.create({
   barBg:{height:8,backgroundColor:"#EEF0F4",borderRadius:9,overflow:"hidden",marginTop:9},barFill:{height:8,backgroundColor:C.blue,borderRadius:9},
   deduction:{fontSize:10,color:C.red,fontWeight:"700",marginTop:5},finding:{paddingVertical:14,borderBottomWidth:1,borderBottomColor:C.line},
   findingTitle:{fontSize:13,fontWeight:"800",color:C.ink,flex:1,paddingRight:8},evidence:{fontSize:10,color:C.muted,marginTop:7,fontStyle:"italic",lineHeight:16},
+  actionSuggestion:{paddingTop:16,marginTop:14,borderTopWidth:1,borderTopColor:C.line},
+  actionLabel:{fontSize:9,fontWeight:"900",letterSpacing:1,color:C.blue,marginTop:13,marginBottom:4},
+  sourceLine:{backgroundColor:"#F7F8FA",borderWidth:1,borderColor:C.line,borderRadius:10,padding:11,marginTop:7},
+  sourceLineLabel:{fontSize:9,fontWeight:"800",color:C.muted,letterSpacing:.7,marginBottom:6},
+  sourceLineText:{fontSize:11,lineHeight:17,color:C.ink},
+  wordingGuide:{fontSize:11,lineHeight:18,color:C.ink,backgroundColor:"#F0F5FF",padding:11,borderRadius:9,marginTop:4},
+  priorityTag:{fontSize:8,fontWeight:"900",letterSpacing:.6,paddingHorizontal:7,paddingVertical:5,borderRadius:8,overflow:"hidden"},
+  priorityHigh:{color:"#B42318",backgroundColor:"#FEF3F2"},priorityMedium:{color:"#8A6100",backgroundColor:"#FFF8E7"},
   recommendation:{fontSize:12,lineHeight:19,color:"#344054",marginTop:8},subhead:{fontSize:12,fontWeight:"800",color:C.ink,marginTop:17,marginBottom:9},
   skillWrap:{flexDirection:"row",flexWrap:"wrap",gap:7},
   missingSkill:{fontSize:10,color:"#B42318",backgroundColor:"#FEF3F2",paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden",fontWeight:"600"},
