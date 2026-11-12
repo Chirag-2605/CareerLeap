@@ -68,3 +68,11 @@ def test_job_match_guidance_avoids_generic_jd_fillers():
     suggestions = result["actionable_suggestions"]
     assert all("knowledge" not in item.get("what_is_missing", "").lower() for item in suggestions)
     assert all("requirements" not in item.get("what_is_missing", "").lower() for item in suggestions)
+
+
+def test_quality_suggestions_point_to_edit_location_and_template():
+    result = analyze_quality(SAMPLE.replace("Professional Summary\nSoftware engineer with experience building scalable backend systems.\n", ""))
+    summary = next(item for item in result["actionable_suggestions"] if item["code"] == "add_summary_section")
+    assert summary["where_to_edit"] == "Below your contact details and before Experience"
+    assert "optional" in summary["what_is_missing"].lower()
+    assert "Replace every bracket" in summary["safe_wording"]
