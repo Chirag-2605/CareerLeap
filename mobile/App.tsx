@@ -327,7 +327,7 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
       {q.breakdown.map((item:any) => <Breakdown key={item.key} item={item} styles={styles}/>)}
     </Card>
     {j && <Card styles={styles}><Text style={styles.cardTitle}>Job-specific match</Text><Text style={styles.bodySmall}>{j.summary}</Text>
-      {j.breakdown.map((item:any) => <Breakdown key={item.key} item={item}/>)}
+      {j.breakdown.map((item:any) => <Breakdown key={item.key} item={item} styles={styles}/>)}
       {j.missing_skills?.length > 0 && <><Text style={styles.subhead}>Not detected in your resume</Text><View style={styles.skillWrap}>{j.missing_skills.map((s:string)=><Text key={s} style={styles.missingSkill}>{s}</Text>)}</View></>}
       {j.matched_skills?.length > 0 && <><Text style={styles.subhead}>Evidence detected</Text><View style={styles.skillWrap}>{j.matched_skills.map((s:string)=><Text key={s} style={styles.matchedSkill}>{s}</Text>)}</View></>}
     </Card>}
@@ -359,7 +359,7 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
       {q.findings.length === 0 && <Text style={styles.bodySmall}>No major deductions were identified by this rubric.</Text>}
       {q.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}
     </Card>
-    {j?.findings?.length > 0 && <Card styles={styles}><Text style={styles.cardTitle}>Job match recommendations</Text>{j.findings.map((f:any)=><Finding key={f.code} finding={f}/>)}</Card>}
+    {j?.findings?.length > 0 && <Card styles={styles}><Text style={styles.cardTitle}>Job match recommendations</Text>{j.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}</Card>}
     <Card styles={styles}><Text style={styles.cardTitle}>Recommended next steps</Text>{q.top_suggestions.map((s:string,i:number)=><View key={i} style={styles.suggestion}><Text style={styles.suggestionNum}>{i+1}</Text><Text style={styles.suggestionText}>{s}</Text></View>)}</Card>
     <Text style={styles.privacy}>This score is an explainable estimate based on our V1 rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
     <Button styles={styles} C={C} title="Analyze another resume" onPress={onBack}/>
