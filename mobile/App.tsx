@@ -220,7 +220,7 @@ export default function App() {
   if (!authReady) return <SafeAreaView style={styles.center}><ActivityIndicator color={C.blue}/></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}>
-    <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} backgroundColor={C.white} />
+    <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
