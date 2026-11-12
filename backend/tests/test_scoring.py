@@ -131,3 +131,76 @@ def test_job_match_explains_when_jd_has_no_recognized_skills():
     suggestions = result["actionable_suggestions"]
     assert all("looking" not in item.get("what_is_missing", "").lower() for item in suggestions)
     assert all("reliable" not in item.get("what_is_missing", "").lower() for item in suggestions)
+
+
+
+def test_ats_readability_measures_extraction_not_resume_length():
+    clean_short_resume = """Alex Doe
+alex@example.com
+Skills
+Python, HTML, CSS
+Experience
+Software Intern
+- Built a small web interface using HTML and CSS.
+Education
+B.Tech Computer Science, Example College, 2026
+"""
+    result = analyze_quality(clean_short_resume)
+    readability = next(item for item in result["breakdown"] if item["key"] == "readability")
+    assert readability["earned"] == 10
+
+
+def test_ats_readability_penalizes_flattened_unstructured_extraction():
+    flattened = "Alex Doe alex@example.com Python HTML CSS Software Intern built a web interface B.Tech Example College 2026"
+    result = analyze_quality(flattened)
+    readability = next(item for item in result["breakdown"] if item["key"] == "readability")
+    assert readability["earned"] < 10
+    assert any(item["code"] == "low_line_structure" for item in result["findings"])
+
+
+def test_generic_software_intern_title_does_not_get_full_frontend_alignment():
+    resume = """JOHN DOE
+Job Seeker
+Email: johndoe@email.com | Phone: 9876543210
+EDUCATION
+ABC Engineering College — B.Tech Computer Science (2022–2026)
+MY SKILLS
+Computer, Coding, Java (Basic), Python, HTML, CSS
+WORK EXPERIENCE
+Software Intern — ABC Company (2025)
+- Worked on different projects.
+- Helped seniors with coding.
+- Did some frontend and backend work.
+- Fixed bugs whenever required.
+PERSONAL PROJECTS
+Project 1 — Management System
+- Made a project using programming.
+"""
+    result = analyze_job_match(
+        resume,
+        "Frontend Engineer. Build responsive web applications using JavaScript, HTML, CSS, React, TypeScript and Git.",
+    )
+    role = next(item for item in result["breakdown"] if item["key"] == "role_alignment")
+    assert role["earned"] < role["possible"]
+    assert result["role_alignment"]["candidate_family"] == "software_engineering"
+    assert result["role_alignment"]["target_family"] == "frontend"
+    assert result["role_alignment"]["assessment"] == "broadly_related"
+
+
+def test_explicit_frontend_title_gets_full_frontend_alignment():
+    resume = """Alex Doe
+Skills
+React, TypeScript
+Experience
+Frontend Engineer
+- Built reusable React components for a customer dashboard.
+Education
+B.Tech Computer Science, Example University, 2026
+"""
+    result = analyze_job_match(
+        resume,
+        "Frontend Engineer. Build responsive web applications using React and TypeScript.",
+    )
+    role = next(item for item in result["breakdown"] if item["key"] == "role_alignment")
+    assert role["earned"] == role["possible"] == 15
+    assert result["role_alignment"]["assessment"] == "aligned"
