@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -15,6 +15,10 @@ import { analyzeResume } from "./src/api";
 import { C } from "./src/theme";
 
 WebBrowser.maybeCompleteAuthSession();
+
+// Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s]).{8,}$/;
 
 type Report = any;
 function firebaseAuthMessage(error: any) {
@@ -88,9 +92,69 @@ export default function App() {
     scopes: ["openid", "profile", "email"],
   });
 
+  const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     if (!auth) { setAuthReady(true); return; }
-    return onAuthStateChanged(auth, (u) => { setUser(u); setAuthReady(true); });
+    let mounted = true;
+    let checking = false;
+
+    const clearSessionTimer = () => {
+      if (sessionTimer.current) {
+        clearTimeout(sessionTimer.current);
+        sessionTimer.current = null;
+      }
+    };
+
+    const validateSession = async (candidate: User) => {
+      if (checking || !mounted) return;
+      checking = true;
+      try {
+        const token = await candidate.getIdTokenResult();
+        const authTime = Number(token.claims.auth_time) * 1000;
+        if (!Number.isFinite(authTime) || Date.now() - authTime >= SESSION_MAX_AGE_MS) {
+          clearSessionTimer();
+          if (mounted) setUser(null);
+          await signOut(auth);
+          return;
+        }
+        const remaining = SESSION_MAX_AGE_MS - (Date.now() - authTime);
+        clearSessionTimer();
+        sessionTimer.current = setTimeout(async () => {
+          if (auth?.currentUser?.uid === candidate.uid) {
+            setUser(null);
+            await signOut(auth);
+          }
+        }, remaining);
+        if (mounted) setUser(candidate);
+      } catch {
+        // Fail closed if the current session cannot be verified.
+        clearSessionTimer();
+        if (mounted) setUser(null);
+        if (auth?.currentUser?.uid === candidate.uid) await signOut(auth);
+      } finally {
+        checking = false;
+        if (mounted) setAuthReady(true);
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (candidate) => {
+      clearSessionTimer();
+      if (candidate) void validateSession(candidate);
+      else {
+        setUser(null);
+        setAuthReady(true);
+      }
+    });
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active" && auth.currentUser) void validateSession(auth.currentUser);
+    });
+    return () => {
+      mounted = false;
+      clearSessionTimer();
+      unsubscribe();
+      appStateSubscription.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -107,7 +171,11 @@ export default function App() {
 
   const handleEmailAuth = async () => {
     if (!auth) return Alert.alert("Firebase not configured", "Add your Firebase settings to mobile/.env first.");
-    if (!email.trim() || password.length < 6) return Alert.alert("Check your details", "Enter a valid email and a password of at least 6 characters.");
+    if (!email.trim()) return Alert.alert("Check your details", "Enter a valid email address.");
+    if (authMode === "signup" && !PASSWORD_RULE.test(password)) {
+      return Alert.alert("Choose a stronger password", "Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character.");
+    }
+    if (authMode === "login" && !password) return Alert.alert("Check your details", "Enter your password.");
     setBusy(true);
     try {
       if (authMode === "login") await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -159,6 +227,8 @@ export default function App() {
   const reset = () => {
     setReport(null);
     setJob("");
+    setSelectedRole("");
+    setShowRoleOptions(false);
     setFileName("");
     setSelectedAsset(null);
     setShowScanner(false);
@@ -189,7 +259,8 @@ export default function App() {
           <Button title="Continue with Google" onPress={() => promptAsync()} disabled={!request || !firebaseConfigured || busy}/>
           <View style={styles.separator}><View style={styles.rule}/><Text style={styles.muted}>OR CONTINUE WITH EMAIL</Text><View style={styles.rule}/></View>
           <Label>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor="#98A2B3" style={styles.input}/>
-          <Label>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder="At least 6 characters" placeholderTextColor="#98A2B3" style={styles.input}/>
+          <Label>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor="#98A2B3" style={styles.input}/>
+          {authMode === "signup" && <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, a number and a special character.</Text>}
           <Button title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
           <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
             <Text style={styles.linkCenter}>{authMode === "login" ? "New to CareerLeap? Create an account" : "Already have an account? Sign in"}</Text>
@@ -352,6 +423,7 @@ const styles = StyleSheet.create({
   input:{borderWidth:1,borderColor:"#DDE2EA",borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:14,color:C.ink,backgroundColor:"#FCFCFD"},
   authSwitch:{paddingVertical:13},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
   warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:"#FFF8EB",padding:10,borderRadius:9},
+  passwordHint:{fontSize:10,lineHeight:16,color:C.muted,marginTop:7},
   rowBetween:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   newTag:{backgroundColor:C.blueSoft,color:C.blue,fontWeight:"800",fontSize:9,letterSpacing:1,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden"},
   uploadBox:{backgroundColor:"#F8FAFF",borderWidth:1,borderColor:"#D9E2F4",borderStyle:"dashed",borderRadius:16,padding:21,alignItems:"center",marginTop:19,marginBottom:9},
