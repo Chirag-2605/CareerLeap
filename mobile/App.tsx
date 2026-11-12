@@ -97,7 +97,7 @@ export default function App() {
   if (!authReady) return <SafeAreaView style={styles.center}><ActivityIndicator color={C.blue}/></SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}>
-    <StatusBar barStyle="dark-content" backgroundColor={C.soft}/>
+    <StatusBar barStyle="dark-content" />
     <View style={styles.topbar}>
       <View style={styles.brandMark}><Text style={{color:"#fff",fontWeight:"800",fontSize:17}}>R</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>Resume Analyzer</Text><Text style={styles.brandSub}>CAREER TOOLS</Text></View>
