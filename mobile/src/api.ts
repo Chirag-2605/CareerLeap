@@ -102,3 +102,39 @@ export async function getCreditBalance(): Promise<{ balance: number; reserved: n
   }
   return payload as { balance: number; reserved: number; available: number };
 }
+
+
+export async function verifyGooglePlayCreditPurchase(
+  productId: string,
+  purchaseToken: string
+): Promise<{ credited: number; already_processed: boolean; balance: number; available: number }> {
+  const currentUser = auth?.currentUser;
+  if (!currentUser) {
+    throw new Error("Please sign in before verifying your purchase.");
+  }
+
+  const token = await currentUser.getIdToken(true);
+  let response: Response;
+  try {
+    response = await fetch(\`\${API_URL}/api/v1/credits/google-play/verify\`, {
+      method: "POST",
+      headers: {
+        Authorization: \`Bearer \${token}\`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        product_id: productId,
+        purchase_token: purchaseToken,
+      }),
+    });
+  } catch {
+    throw new Error("Your payment may have completed, but CareerLeap couldn't verify it. Reopen the app while connected to the internet to retry.");
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = payload.detail;
+    throw new Error(typeof detail === "string" ? detail : "Google Play purchase verification failed.");
+  }
+  return payload as { credited: number; already_processed: boolean; balance: number; available: number };
+}
