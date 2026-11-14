@@ -11,6 +11,7 @@ from .analysis_v2 import analyze_quality_v2, analyze_job_match_v2
 from .analysis_v3 import analyze_quality_v3, analyze_job_match_v3
 from .analysis_v4 import analyze_quality_v4, analyze_job_match_v4
 from .scoring import analyze_quality, analyze_job_match
+from .suggestion_design import design_suggestions
 
 app = FastAPI(
     title="Resume Analyzer API",
@@ -47,6 +48,9 @@ async def analyze(
         text, meta = parse_resume(filename, content)
         quality = analyze_quality(text)
         job_match = analyze_job_match(text, job_description) if job_description and job_description.strip() else None
+        # Suggestions are designed only after scoring/matching has completed.
+        # The layer adds coaching; it does not change analysis scores or persist resume data.
+        quality["suggestion_design"] = design_suggestions(text, quality, job_match)
         # Deliberately do not persist resume text, file bytes, or scan result.
         return {
             "quality": quality,
