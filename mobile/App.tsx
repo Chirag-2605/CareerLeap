@@ -258,7 +258,7 @@ export default function App() {
       {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
 
-    <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
@@ -420,7 +420,7 @@ function Finding({finding, styles, C}: any) {
 }
 
 function createStyles(C: any) { return StyleSheet.create({
-  splashSafe:{flex:1,backgroundColor:C.soft},
+  splashSafe:{flex:1,backgroundColor:C.soft,paddingTop:Platform.OS === "android" ? (StatusBar.currentHeight || 0) : 0},
   splashContent:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:C.soft},
   splashLogo:{width:88,height:88,borderRadius:28,backgroundColor:C.navy,alignItems:"center",justifyContent:"center",elevation:8,shadowColor:"#000000",shadowOpacity:.16,shadowRadius:18,shadowOffset:{width:0,height:8}},
   splashLogoText:{fontSize:48,fontWeight:"900",color:"#FFFFFF",letterSpacing:-2},
@@ -429,7 +429,7 @@ function createStyles(C: any) { return StyleSheet.create({
   keyboardArea:{flex:1},
   themeToggle:{paddingHorizontal:11,paddingVertical:8,borderRadius:18,backgroundColor:C.blueSoft},
   themeToggleText:{fontSize:11,fontWeight:"800",color:C.blue},
-  safe:{flex:1,backgroundColor:C.soft}, center:{flex:1,alignItems:"center",justifyContent:"center"},
+  safe:{flex:1,backgroundColor:C.soft,paddingTop:Platform.OS === "android" ? (StatusBar.currentHeight || 0) : 0}, center:{flex:1,alignItems:"center",justifyContent:"center"},
   topbar:{height:70,paddingHorizontal:22,flexDirection:"row",alignItems:"center",gap:12,borderBottomWidth:1,borderColor:C.line,backgroundColor:C.white},
   brandMark:{width:40,height:40,borderRadius:13,backgroundColor:C.navy,alignItems:"center",justifyContent:"center"},
   brandMarkText:{color:C.white,fontWeight:"900",fontSize:20,letterSpacing:-1},
