@@ -59,9 +59,7 @@ def reserve_scan_credit(user_id: str, idempotency_key: str) -> str:
                 )
                 existing = cur.fetchone()
                 if existing:
-                    if existing[1] == "RESERVED":
-                        return str(existing[0])
-                    raise HTTPException(status_code=409, detail="This scan request has already been processed.")
+                    raise HTTPException(status_code=409, detail="This scan request is already reserved or has been processed.")
                 cur.execute(
                     "SELECT balance, reserved_credits FROM user_wallets WHERE user_id = %s FOR UPDATE",
                     (user_id,),
