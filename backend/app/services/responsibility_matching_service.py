@@ -14,11 +14,14 @@ STOP = {
     "experience", "ability", "work", "working", "responsible", "reliable",
     "reliability", "scalable", "scale", "clean", "efficient", "maintainable",
     "software", "strong", "good", "knowledge", "understanding", "including",
-    "build", "built", "building", "develop", "developed", "implement",
-    "implemented", "create", "created", "design", "designed", "maintain",
-    "maintained", "support", "supported", "handle", "handling",
+    "support", "supported", "handle", "handling",
 }
 SYNONYMS = {
+    "built": "build_action", "building": "build_action", "build": "build_action",
+    "developed": "build_action", "develop": "build_action", "implemented": "build_action",
+    "implement": "build_action", "created": "build_action", "create": "build_action",
+    "designed": "design_action", "design": "design_action",
+    "maintained": "maintain_action", "maintain": "maintain_action",
     "interfaces": "interface", "components": "component",
     "endpoints": "endpoint", "apis": "api", "restful": "rest",
     "services": "software_artifact", "service": "software_artifact",
@@ -49,6 +52,14 @@ def similarity(left: str, right: str) -> float:
         return 0.0
     overlap = a & b
     if len(overlap) < 2:
+        return 0.0
+    # A generic action plus a concrete artifact is meaningful; action-only
+    # overlap is not. This preserves "designed backend modules" while rejecting
+    # vague phrases such as "worked on projects".
+    actions = {"build_action", "design_action", "maintain_action"}
+    if overlap & actions and "software_artifact" not in overlap and not (
+        overlap & {"endpoint", "database", "schema", "interface", "component"}
+    ):
         return 0.0
     return (2.0 * len(overlap)) / float(len(a) + len(b))
 
