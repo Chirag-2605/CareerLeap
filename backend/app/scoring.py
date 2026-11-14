@@ -2,8 +2,8 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-VERSION = "quality-v2"
-MATCH_VERSION = "match-v2"
+VERSION = "quality-v3"
+MATCH_VERSION = "match-v3"
 
 SECTION_ALIASES = {
     "summary": ["summary", "professional summary", "profile", "objective", "career objective"],
@@ -15,10 +15,10 @@ SECTION_ALIASES = {
 }
 SKILL_TERMS = [
     "python", "java", "javascript", "typescript", "react", "react native", "node.js", "node",
-    "sql", "postgresql", "mysql", "mongodb", "aws", "azure", "gcp", "docker", "kubernetes",
+    "sql", "postgresql", "mysql", "mongodb", "aws", "azure", "gcp", "docker", "kubernetes", "kotlin", "gradle", "maven", "api",
     "spring boot", "fastapi", "django", "flask", "git", "linux", "html", "css", "machine learning",
     "deep learning", "data analysis", "pandas", "numpy", "tensorflow", "pytorch", "rest api",
-    "microservices", "terraform", "redis", "kafka", "excel", "power bi", "tableau",
+    "microservices", "terraform", "redis", "kafka", "excel", "power bi", "tableau", "data structures and algorithms", "object-oriented programming", "distributed systems",
 ]
 SYNONYMS = {
     "js": "javascript", "ts": "typescript", "postgres": "postgresql",
@@ -72,6 +72,8 @@ JD_GENERIC_TERMS = {
     "strong", "good", "understanding", "develop", "development", "support",
     "maintain", "maintenance", "related", "including", "various", "using",
     "looking", "reliable", "code", "test", "testing", "engineer", "developer",
+    "collaborate", "collaboration", "product", "manager", "managers",
+    "designer", "designers", "engineers", "application", "applications",
 }
 
 
@@ -223,17 +225,20 @@ def analyze_quality(text: str) -> dict:
 
     # Contact: 10
     contact = 0
-    if EMAIL_RE.search(text): contact += 4
-    else: findings.append(_finding("missing_email", "Email address not found", 4, "high", None, "Add a professional email address in the header."))
-    if PHONE_RE.search(text): contact += 3
-    else: findings.append(_finding("missing_phone", "Phone number not found", 3, "medium", None, "Add a reachable phone number with country code."))
-    if URL_RE.search(text) or "linkedin.com" in lower: contact += 3
-    else: findings.append(_finding("missing_profile_link", "No professional profile link found", 3, "low", None, "Add a LinkedIn, portfolio, or GitHub URL if relevant."))
+    if EMAIL_RE.search(text): contact += 5
+    else: findings.append(_finding("missing_email", "Email address not found", 5, "high", None, "Add a professional email address in the header."))
+    if PHONE_RE.search(text): contact += 5
+    else: findings.append(_finding("missing_phone", "Phone number not found", 5, "medium", None, "Add a reachable phone number with country code."))
+    if not URL_RE.search(text) and "linkedin.com" not in lower:
+        # A profile link is useful polish, not a contact-information requirement.
+        findings.append(_finding("optional_profile_link", "No professional profile link found", 0, "low", None, "Optionally add a relevant LinkedIn, portfolio, or GitHub URL."))
     earned["contact"] = contact
 
-    # Structure: 15
-    structure = 0
-    for key, points in [("experience", 5), ("education", 4), ("skills", 4), ("summary", 2)]:
+    # Structure: 15. A summary is optional, so its absence does not reduce score.
+    # The two baseline points keep optional presentation choices from becoming
+    # an implicit ATS requirement; core sections account for the remaining 13.
+    structure = 2
+    for key, points in [("experience", 5), ("education", 4), ("skills", 4)]:
         if sections[key]: structure += points
         else:
             findings.append(_finding(f"missing_{key}_section", f"{key.title()} section not detected", points, "high" if key in ("experience","education") else "medium", None,
@@ -404,7 +409,13 @@ def analyze_job_match(resume_text: str, job_text: str) -> dict:
         "team", "work", "years", "year", "looking", "reliable", "code", "test",
         "testing", "engineer", "developer",
     }
-    words = [w for w in re.findall(r"[a-z][a-z0-9+#.]{2,}", job) if w not in stop]
+    # Strip sentence punctuation before counting JD terms. Without this,
+    # tokens such as "applications." could never match "applications" in a resume.
+    words = [
+        token.rstrip(".,;:!?")
+        for token in re.findall(r"[a-z][a-z0-9+#.]{2,}", job)
+    ]
+    words = [word for word in words if word and word not in stop]
     freq = Counter(words)
     important = [w for w, _ in freq.most_common(12)]
     matched_terms = [w for w in important if re.search(rf"(?<![a-z0-9]){re.escape(w)}(?![a-z0-9])", resume)]
