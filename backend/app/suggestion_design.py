@@ -270,7 +270,7 @@ def design_suggestions(
                 "Did the work reduce manual steps, prevent errors, improve reliability, or make a workflow easier?",
                 "How many users, services, datasets, records, or teams were involved, if you know?",
                 "What shipped, changed, became faster, or became possible?",
-                "If no measurement exists, what concrete deliverable or technical complexity can you verify?",
+                "If no measurement exists, what concrete qualitative deliverable or technical complexity can you verify?",
             ],
             rewrite="[Action] [component or workflow] using [method], enabling [verified qualitative result or scope].",
             impact_guidance="Use a number only when you can explain its source. Otherwise state a concrete before/after, scope, reliability change, or shipped capability.",
