@@ -8,7 +8,9 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-from .scoring import SKILL_TERMS
+from .parser_v2 import SKILL_GROUPS
+
+SKILL_TERMS = list(SKILL_GROUPS.keys())
 
 VERSION = "suggestion-design-v1"
 
@@ -279,39 +281,33 @@ def design_suggestions(
     # Convert job-match findings into contextual edits. Missing skills are never
     # instructions to add keywords without supporting experience.
     if job_match:
-        for suggestion in job_match.get("actionable_suggestions", []):
-            code = suggestion.get("code", "")
-            if code.startswith("add_missing_skill_"):
-                skill = code[len("add_missing_skill_"):].replace("_", " ")
-                items.append(_suggestion(
-                    code="job_skill_evidence_" + skill.replace(" ", "_"),
-                    category="job_match",
-                    priority=suggestion.get("priority", "medium"),
-                    title="Check whether you can evidence {0}".format(skill),
-                    rationale="The job description names {0}, but it was not found in the resume. Add it only if you have genuinely used it.".format(skill),
-                    where_to_edit=suggestion.get("where_to_edit", "Relevant Skills, Experience, or Projects section"),
-                    source=None,
-                    questions=[
-                        "Have you used {0} in a real project, internship, coursework, or independent build?".format(skill),
-                        "What did you do with it, and where can that example be shown?",
-                    ],
-                    rewrite="Used {0} to [specific task] in [project or role], resulting in [verified deliverable or outcome].".format(skill),
-                ))
-            elif code == "jd_language_gaps":
-                missing_text = suggestion.get("what_is_missing", "")
-                items.append(_suggestion(
-                    code="ground_job_terminology",
-                    category="job_match",
-                    priority="medium",
-                    title="Use relevant job-description language in context",
-                    rationale=missing_text + " Include a term only where it accurately describes your work; do not add a keyword list.",
-                    where_to_edit=suggestion.get("where_to_edit", "Closest relevant Experience or Projects bullet"),
-                    questions=[
-                        "Which existing task genuinely involved this responsibility or concept?",
-                        "What action did you take, and what technical method or deliverable supports the wording?",
-                    ],
-                    rewrite=" [Action] [relevant application, API, data, or collaboration task] using [verified method], resulting in [verified outcome].",
-                ))
+        # V4 exposes evidence-backed skill_gaps rather than V1's actionable_suggestions.
+        for gap in job_match.get("skill_gaps", []):
+            skill = gap.get("skill", "").strip()
+            if not skill:
+                continue
+            classification = gap.get("classification", "preferred")
+            priority = "high" if classification == "required" else "medium"
+            alternatives = gap.get("alternatives") or []
+            skill_label = " or ".join(alternatives) if alternatives else skill
+            items.append(_suggestion(
+                code="job_skill_evidence_" + re.sub(r"[^a-z0-9]+", "_", skill.lower()).strip("_"),
+                category="job_match",
+                priority=priority,
+                title="Check whether you can evidence {0}".format(skill_label),
+                rationale=(
+                    "The job description identifies {0} as a {1} requirement, but the analyzer did not find "
+                    "resume evidence for it. This is an evidence gap, not proof that you lack the skill. "
+                    "Add it only if you have genuinely used it."
+                ).format(skill_label, classification),
+                where_to_edit="Relevant Skills, Experience, or Projects section",
+                source=None,
+                questions=[
+                    "Have you used {0} in a real project, internship, coursework, or independent build?".format(skill_label),
+                    "What did you personally do with it, and where can that example be shown?",
+                ],
+                rewrite="Used {0} to [specific task] in [project or role], resulting in [verified deliverable or outcome].".format(skill_label),
+            ))
 
     # Optional polish must not be presented as a mandatory ATS requirement.
     if not any(item["section"] == "summary" for item in lines):
