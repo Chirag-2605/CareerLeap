@@ -16,7 +16,7 @@ export async function analyzeResume(
     throw new Error("Please sign in before analyzing a resume.");
   }
 
-  const token = await currentUser.getIdToken();
+  const token = await currentUser.getIdToken(true);
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };
