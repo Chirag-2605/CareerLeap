@@ -5,6 +5,7 @@ from docx import Document
 
 from app.parser_v2 import parse_resume_v2
 from app.analysis_v4 import analyze_quality_v4, analyze_job_match_v4
+from app.suggestion_design import design_suggestions
 
 
 def parse_lines(lines):
@@ -338,3 +339,22 @@ def test_v4_matches_added_core_skills_but_does_not_infer_http_from_api_developme
     }
     assert result["missing_required_skills"] == ["http"]
     assert all(item["status"] == "listed" for item in result["skill_matches"])
+
+
+
+def test_single_v4_pipeline_feeds_post_analysis_suggestion_design():
+    parsed = weak_resume()
+    quality = analyze_quality_v4(parsed)
+    job_match = analyze_job_match_v4(
+        parsed,
+        "Required Qualifications:\\n- Python\\n- Kotlin\\n"
+        "Responsibilities:\\n- Build and maintain backend services using Python.",
+    )
+    resume_text = "\\n".join(item["text"] for item in parsed["evidence"])
+    plan = design_suggestions(resume_text, quality, job_match)
+
+    assert quality["version"] == "quality-v4"
+    assert job_match["version"] == "match-v4"
+    assert plan["version"] == "suggestion-design-v1"
+    assert any(item["category"] == "job_match" for item in plan["items"])
+    assert all("verified" in item["safety_note"].lower() for item in plan["items"])
