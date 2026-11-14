@@ -145,7 +145,32 @@ def _actionable_job_suggestions(resume_text: str, missing_skills: list[str],
     return suggestions
 
 
-def _quality_actionable_suggestions(text: str, sections_present: dict) -> list[dict]:
+def _suggested_rewrite(text: str) -> str:
+    """Offer a fill-in rewrite that preserves source facts and never invents metrics."""
+    clean = BULLET_RE.sub("", str(text or "")).strip().rstrip(".")
+    patterns = [
+        (r"^(?:i\s+)?worked\s+on\s+", "Contributed to "),
+        (r"^helped\s+(?:to\s+)?develop\s+", "Supported the development of "),
+        (r"^helped\s+(?:to\s+)?", "Supported "),
+        (r"^assisted\s+with\s+", "Supported "),
+        (r"^assisted\s+in\s+", "Supported "),
+        (r"^involved\s+in\s+", "Contributed to "),
+        (r"^participated\s+in\s+", "Contributed to "),
+        (r"^responsible\s+for\s+", "Handled "),
+    ]
+    for pattern, replacement in patterns:
+        if re.match(pattern, clean, re.I):
+            remainder = re.sub(pattern, "", clean, count=1, flags=re.I)
+            return (
+                f"{replacement}{remainder} by [describe the specific action you took] "
+                "using [relevant technology or method], resulting in [verified outcome]."
+            )
+    if re.search(r"\b(using|with|through|via)\b", clean, re.I):
+        return f"{clean} and [add a verified outcome]."
+    return f"{clean} using [specific technology or method], resulting in [verified outcome]."
+
+
+def _quality_actionable_suggestions(text: str, sections_present: dict):
     sections = _section_line_map(text)
     suggestions = []
     if not sections_present.get("summary"):
@@ -182,8 +207,9 @@ def _quality_actionable_suggestions(text: str, sections_present: dict) -> list[d
                                 if item["vague"] else "The bullet describes work, but gives limited detail about the method, scope, or outcome."),
             "where_to_edit": "Keep this bullet in its current section",
             "target_line": {"line": item["line"], "text": item["text"]},
-            "suggested_change": "Rewrite this same bullet using: strong action verb + what you built/changed + how or with which technology + result or scale. Add a metric only when you can verify it.",
-            "safe_wording": "[Action verb] [specific component or task] using [technology/method], resulting in [verified outcome, scale, or improvement]. Do not invent a number if you do not have one.",
+            "suggested_change": "Keep the original facts, then make your personal action, technical approach, and verified result explicit.",
+            "suggested_rewrite": _suggested_rewrite(item["text"]),
+            "safe_wording": "Replace every bracket with a detail you can verify. Do not add a tool, responsibility, or metric you did not actually use or achieve.",
         })
     return suggestions
 
