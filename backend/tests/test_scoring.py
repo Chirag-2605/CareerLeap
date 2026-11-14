@@ -23,14 +23,14 @@ def test_quality_score_is_bounded_and_explainable():
     assert 0 <= result["score"] <= 100
     assert sum(x["possible"] for x in result["breakdown"]) == 100
     assert sum(x["earned"] for x in result["breakdown"]) == result["score"]
-    assert result["version"] == "quality-v2"
+    assert result["version"] == "quality-v3"
 
 def test_job_match_returns_separate_score():
     result = analyze_job_match(SAMPLE, "We need a Python Java backend engineer with AWS, SQL, Docker and Kubernetes.")
     assert 0 <= result["score"] <= 100
     assert "python" in result["matched_skills"]
     assert "kubernetes" in result["missing_skills"]
-    assert result["version"] == "match-v2"
+    assert result["version"] == "match-v3"
 
 def test_quality_deductions_have_recommendations():
     result = analyze_quality("A short resume without sections or contact information.")
@@ -229,3 +229,69 @@ def test_quality_actionable_suggestions_include_sentence_rewrites():
     ]
     assert rewrites
     assert all(isinstance(value, str) and value.endswith(".") for value in rewrites)
+
+
+
+def test_contact_score_does_not_penalize_missing_optional_profile_link():
+    resume = """Alex Doe
+alex@example.com
++1 415 555 0199
+Experience
+Software Engineer
+- Built a small service using Python.
+Education
+B.Tech, Example University, 2024
+Skills
+Python, Java, SQL
+"""
+    result = analyze_quality(resume)
+    contact = next(item for item in result["breakdown"] if item["key"] == "contact")
+    optional = next(item for item in result["findings"] if item["code"] == "optional_profile_link")
+
+    assert contact["earned"] == 10
+    assert optional["deduction"] == 0
+
+
+def test_missing_summary_is_optional_and_does_not_reduce_structure_score():
+    resume = """Alex Doe
+alex@example.com
++1 415 555 0199
+Skills
+Python, Java, SQL
+Experience
+Software Engineer
+- Built a backend API using Python and SQL.
+Education
+B.Tech, Example University, 2024
+"""
+    result = analyze_quality(resume)
+    structure = next(item for item in result["breakdown"] if item["key"] == "structure")
+
+    assert structure["earned"] == 15
+    assert not any(item["code"] == "missing_summary_section" for item in result["findings"])
+    summary = next(item for item in result["actionable_suggestions"] if item["code"] == "add_summary_section")
+    assert "optional" in summary["what_is_missing"].lower()
+
+
+def test_job_description_terms_strip_trailing_punctuation_and_ignore_generic_collaboration_terms():
+    resume = """Alex Doe
+Skills
+Python, Java, API
+Experience
+Software Engineer
+- Built APIs for internal applications using Python.
+Education
+B.Tech, Example University, 2024
+"""
+    result = analyze_job_match(
+        resume,
+        "Software Engineer. Build applications and APIs for data services; collaborate with product managers and designers.",
+    )
+    gaps = next(
+        (item for item in result["actionable_suggestions"] if item["code"] == "jd_language_gaps"),
+        None,
+    )
+    if gaps:
+        assert "applications." not in gaps["what_is_missing"]
+        assert "managers." not in gaps["what_is_missing"]
+    assert "api" in result["matched_skills"]
