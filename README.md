@@ -130,4 +130,21 @@ The authenticated endpoints are:
 - `GET /api/v1/credits/balance` — lazily creates a wallet and grants the initial three credits exactly once.
 - `GET /api/v1/credits/transactions` — returns the authenticated user's latest ledger entries.
 
-When `CREDITS_ENABLED=true`, the existing `/api/v1/analyze` endpoint requires a target job description and an `Idempotency-Key` header. It reserves one credit before analysis, commits the debit only after successful analysis, and releases the reservation when analysis raises an error. The mobile app must be updated to send a fresh stable idempotency key per scan before enabling this flag for real users. Razorpay and mobile purchase flows are subsequent milestones. The flag defaults to false so deployments do not accidentally enable an unconfigured wallet. Never commit the Neon connection string.
+When `CREDITS_ENABLED=true`, the existing `/api/v1/analyze` endpoint requires an `Idempotency-Key` header. Job descriptions remain optional. The endpoint reserves one credit before analysis, commits the debit only after successful analysis, and releases the reservation when analysis raises an error. The flag defaults to false so deployments do not accidentally enable an unconfigured wallet.
+
+### Google Play credit packs
+
+The Android app uses Google Play Billing consumable one-time products:
+
+| Product ID | Credits | India price |
+| --- | ---: | ---: |
+| `careerleap_10_scans` | 10 | ₹49 |
+| `careerleap_25_scans` | 25 | ₹99 |
+
+Configure these exact product IDs and prices in Play Console under Monetize > Products > In-app products. Products must be active and available to the app's testing track before they can be fetched by the app. The app obtains display prices from Google Play rather than hardcoding them.
+
+Apply `backend/migrations/002_google_play_purchases.sql` after the credit-ledger migration. Configure `GOOGLE_PLAY_PACKAGE_NAME` and `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` on the backend. The Google Cloud service account must have the Android Publisher API enabled and be granted the required app permissions in Play Console. Never place this service-account JSON in the mobile app or commit it.
+
+The authenticated `POST /api/v1/credits/google-play/verify` endpoint verifies product ID, purchase state, consumption state, quantity, and the obfuscated Firebase account ID against the Google Play Developer API. A unique purchase-token ledger and a single Neon transaction ensure each purchase can add credits only once. The mobile app finishes the consumable transaction only after backend verification succeeds. If verification is temporarily unavailable, the purchase is left unfinished so the app can retry instead of silently losing the purchase.
+
+Expo IAP requires a custom native development build; Expo Go does not include the native billing module. Rebuild the Android development client after installing the IAP dependency and plugin. Do not merge or enable paid purchases in production until Play Console products, service-account access, migration, backend configuration, and a Play internal-testing purchase have all been validated. Never commit the Neon connection string or Google Play service-account credentials.

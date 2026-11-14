@@ -11,6 +11,9 @@ import {
 import { auth, firebaseConfigured } from "./src/firebase";
 import { analyzeResume, getCreditBalance } from "./src/api";
 import { DARK_THEME, LIGHT_THEME } from "./src/theme";
+import * as Crypto from "expo-crypto";
+import { useIAP, finishTransaction, ErrorCode } from "expo-iap";
+import { verifyGooglePlayCreditPurchase } from "./src/api";
 
 
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
@@ -286,6 +289,7 @@ export default function App() {
   const [credits, setCredits] = useState<number | null>(null);
   const [creditsLoading, setCreditsLoading] = useState(false);
   const [creditsError, setCreditsError] = useState(false);
+  const [showStore, setShowStore] = useState(false);
   const [fileName, setFileName] = useState("");
   const [selectedAsset, setSelectedAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -500,6 +504,7 @@ export default function App() {
 
   const scanResume = async () => {
     if (!user) return showToast("Please sign in before scanning.", "error");
+    if (credits === 0) { setShowStore(true); return; }
     if (!selectedAsset) return showToast("Select a PDF or DOCX before scanning.", "error");
     setBusy(true);
     setLoadingMode("scan");
@@ -517,7 +522,14 @@ export default function App() {
       await refreshCredits();
       setShowScanner(false);
     } catch (e: any) {
-      showToast(e?.message || "Resume analysis couldn't be completed. Please try again.", "error");
+      const message = e?.message || "Resume analysis couldn't be completed. Please try again.";
+      if (String(message).toLowerCase().includes("no scan credits")) {
+        setCredits(0);
+        setShowStore(true);
+        showToast("You're out of scan credits. Choose a pack to continue.", "info");
+      } else {
+        showToast(message, "error");
+      }
     } finally {
       setBusy(false);
       setLoadingMode(null);
@@ -609,6 +621,20 @@ export default function App() {
             <Text style={styles.creditPillText}>{creditsLoading ? "…" : creditsError ? "—" : String(credits ?? 0)}</Text>
           </View>
         </View>
+        {Platform.OS === "android" && <GooglePlayCreditStore
+          visible={showStore}
+          user={user}
+          styles={styles}
+          C={C}
+          onClose={() => setShowStore(false)}
+          onCredited={async (result: any) => {
+            setCredits(result.available);
+            setCreditsError(false);
+            setShowStore(false);
+            showToast(result.credited > 0 ? (result.credited + " scan credits added to your account.") : "Your purchase was already added to your account.", "success");
+          }}
+          showToast={showToast}
+        />}
         <Card styles={styles}>
           <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>Resume analysis</Text><Text style={styles.bodySmall}>A focused review, built around evidence.</Text></View><Text style={styles.newTag}>BETA</Text></View>
           <View style={styles.uploadBox}>
@@ -758,6 +784,94 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
     <Button styles={styles} C={C} title="Analyze another resume" onPress={onBack}/>
   </Animated.View>;
 }
+
+
+function GooglePlayCreditStore({ visible, user, styles, C, onClose, onCredited, showToast }: any) {
+  const productIds = ["careerleap_10_scans", "careerleap_25_scans"];
+  const { connected, products, fetchProducts, requestPurchase } = useIAP({
+    onPurchaseSuccess: async (purchase: any) => {
+      if (!user || !purchase?.productId || !purchase?.purchaseToken) {
+        showToast("The purchase is awaiting account verification. Keep CareerLeap open and try again.", "error");
+        return;
+      }
+      try {
+        const result = await verifyGooglePlayCreditPurchase(purchase.productId, purchase.purchaseToken);
+        await onCredited(result);
+        try {
+          await finishTransaction({ purchase, isConsumable: true });
+        } catch {
+          showToast("Your credits were added. Google Play still needs to finalize the purchase; keep the app connected and reopen it if prompted.", "info");
+        }
+      } catch (error: any) {
+        showToast(error?.message || "We couldn't complete your purchase yet. Please keep the app open and retry.", "error");
+      }
+    },
+    onPurchaseError: (error: any) => {
+      if (error?.code === ErrorCode.UserCancelled) return;
+      showToast(error?.message || "Google Play couldn't complete the purchase. Please try again.", "error");
+    },
+  });
+
+  useEffect(() => {
+    if (!connected) return;
+    fetchProducts({ skus: productIds, type: "in-app" }).catch(() => {
+      showToast("Couldn't load credit packs from Google Play. Please try again.", "error");
+    });
+  }, [connected, fetchProducts]);
+
+  const buy = async (productId: string) => {
+    if (!user || !connected) return;
+    try {
+      const accountId = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, user.uid);
+      await requestPurchase({
+        request: {
+          google: {
+            skus: [productId],
+            obfuscatedAccountId: accountId,
+          },
+        },
+        type: "in-app",
+      });
+    } catch (error: any) {
+      showToast(error?.message || "Couldn't start Google Play checkout. Please try again.", "error");
+    }
+  };
+
+  if (!visible) return null;
+  const packs = [
+    { id: "careerleap_10_scans", credits: 10, label: "Starter pack" },
+    { id: "careerleap_25_scans", credits: 25, label: "Value pack" },
+  ];
+
+  return <Card styles={styles}>
+    <View style={styles.rowBetween}>
+      <Text style={styles.cardTitle}>Get more scan credits</Text>
+      <Text style={styles.newTag}>GOOGLE PLAY</Text>
+    </View>
+    <Text style={styles.bodySmall}>Your free scans are used up. Choose a one-time credit pack. Credits never expire.</Text>
+    {!connected ? <View style={styles.authLoading}><ActivityIndicator color={C.blue}/><Text style={styles.bodySmall}>Connecting to Google Play…</Text></View> : null}
+    {packs.map((pack) => {
+      const product = products.find((item: any) => item.id === pack.id);
+      return <View key={pack.id} style={styles.creditPack}>
+        <View style={{flex:1}}>
+          <Text style={styles.findingTitle}>{pack.label}</Text>
+          <Text style={styles.creditSubtitle}>{pack.credits} resume scans</Text>
+        </View>
+        <Text style={styles.creditPackPrice}>{product?.displayPrice || "—"}</Text>
+        <Button
+          styles={styles}
+          C={C}
+          title={product ? "Buy pack" : "Loading…"}
+          onPress={() => buy(pack.id)}
+          disabled={!connected || !product}
+        />
+      </View>;
+    })}
+    <Text style={styles.bodySmall}>Payments are securely processed by Google Play. Credits are added after CareerLeap verifies your purchase.</Text>
+    <Button styles={styles} C={C} title="Not now" secondary onPress={onClose}/>
+  </Card>;
+}
+
 function Breakdown({item, styles}: any) {
   const assessed = typeof item.earned === "number" && Number.isFinite(item.earned);
   const pct = item.possible && assessed ? item.earned/item.possible : 0;
@@ -806,6 +920,8 @@ function createStyles(C: any) { return StyleSheet.create({
   creditSubtitle:{fontSize:11,color:C.muted,marginTop:4},
   creditPill:{minWidth:42,height:42,borderRadius:13,backgroundColor:C.white,alignItems:"center",justifyContent:"center",paddingHorizontal:8},
   creditPillText:{fontSize:17,fontWeight:"900",color:C.blue},
+  creditPack:{flexDirection:"row",alignItems:"center",gap:10,paddingVertical:14,borderBottomWidth:1,borderBottomColor:C.line},
+  creditPackPrice:{fontSize:15,fontWeight:"900",color:C.ink},
   cardTitle:{fontSize:18,fontWeight:"800",color:C.ink,letterSpacing:-.35},
   button:{backgroundColor:C.navy,paddingVertical:15,paddingHorizontal:18,borderRadius:13,alignItems:"center",marginTop:15,elevation:2,shadowColor:C.navy,shadowOpacity:.13,shadowRadius:5,shadowOffset:{width:0,height:3}},
   buttonPressed:{opacity:.86,transform:[{scale:.99}]},buttonSecondary:{backgroundColor:"#EEF1F6",elevation:0,shadowOpacity:0},buttonText:{fontSize:14,fontWeight:"800",color:C.white,letterSpacing:.1},

@@ -8,6 +8,7 @@ on:
     branches:
       - main
       - feature/matching-accuracy-v43
+      - feat/neon-credit-ledger
 
 permissions:
   contents: read

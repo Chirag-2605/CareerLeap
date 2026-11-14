@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     firebase_service_account_json: Optional[str] = None
     database_url: Optional[str] = None
     credits_enabled: bool = False
+    google_play_package_name: str = "com.chiragagrawal.careerleap"
+    google_play_service_account_json: Optional[str] = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

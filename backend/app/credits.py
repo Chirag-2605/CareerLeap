@@ -6,6 +6,9 @@ from uuid import uuid4
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from .google_play import verify_product_purchase
 
 from .auth import require_user
 from .config import settings
@@ -196,4 +199,127 @@ def get_transactions(
             }
             for row in rows
         ]
+    }
+
+
+class GooglePlayPurchaseRequest(BaseModel):
+    product_id: str = Field(min_length=1, max_length=100)
+    purchase_token: str = Field(min_length=1, max_length=4096)
+
+
+@router.post("/google-play/verify")
+def verify_google_play_purchase(
+    payload: GooglePlayPurchaseRequest,
+    user: dict = Depends(require_user),
+):
+    """Verify a Play purchase and credit its wallet exactly once."""
+    user_id = user["uid"]
+
+    # A retry after the app has consumed the Play purchase must still be safe.
+    with _connect() as conn:
+        with conn.transaction():
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT user_id, credits_added
+                    FROM google_play_purchases
+                    WHERE purchase_token = %s
+                    """,
+                    (payload.purchase_token,),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    if existing[0] != user_id:
+                        raise HTTPException(status_code=409, detail="This purchase has already been linked to another account.")
+                    cur.execute(
+                        "SELECT balance, reserved_credits FROM user_wallets WHERE user_id = %s",
+                        (user_id,),
+                    )
+                    wallet = cur.fetchone()
+                    if not wallet:
+                        raise HTTPException(status_code=409, detail="Credit wallet could not be found.")
+                    return {
+                        "credited": 0,
+                        "already_processed": True,
+                        "balance": wallet[0],
+                        "available": wallet[0] - wallet[1],
+                    }
+
+    verified = verify_product_purchase(payload.product_id, payload.purchase_token, user_id)
+    purchase_time = None
+
+    with _connect() as conn:
+        with conn.transaction():
+            _ensure_wallet(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO google_play_purchases
+                        (purchase_token, user_id, product_id, credits_added, order_id, purchase_time)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (purchase_token) DO NOTHING
+                    RETURNING purchase_token
+                    """,
+                    (
+                        payload.purchase_token,
+                        user_id,
+                        verified["product_id"],
+                        verified["credits"],
+                        verified.get("order_id"),
+                        purchase_time,
+                    ),
+                )
+                inserted = cur.fetchone()
+                if not inserted:
+                    cur.execute(
+                        "SELECT user_id FROM google_play_purchases WHERE purchase_token = %s",
+                        (payload.purchase_token,),
+                    )
+                    existing_user = cur.fetchone()
+                    if not existing_user or existing_user[0] != user_id:
+                        raise HTTPException(status_code=409, detail="This purchase has already been linked to another account.")
+                    cur.execute(
+                        "SELECT balance, reserved_credits FROM user_wallets WHERE user_id = %s",
+                        (user_id,),
+                    )
+                    wallet = cur.fetchone()
+                    return {
+                        "credited": 0,
+                        "already_processed": True,
+                        "balance": wallet[0],
+                        "available": wallet[0] - wallet[1],
+                    }
+
+                cur.execute(
+                    """
+                    UPDATE user_wallets
+                    SET balance = balance + %s, updated_at = NOW()
+                    WHERE user_id = %s
+                    """,
+                    (verified["credits"], user_id),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO credit_transactions
+                        (user_id, amount, transaction_type, reference_id, idempotency_key)
+                    VALUES (%s, %s, 'PURCHASE', %s, %s)
+                    """,
+                    (
+                        user_id,
+                        verified["credits"],
+                        verified.get("order_id") or "google-play-credit-pack",
+                        "google-play-purchase:" + payload.purchase_token,
+                    ),
+                )
+                cur.execute(
+                    "SELECT balance, reserved_credits FROM user_wallets WHERE user_id = %s",
+                    (user_id,),
+                )
+                wallet = cur.fetchone()
+
+    return {
+        "credited": verified["credits"],
+        "already_processed": False,
+        "balance": wallet[0],
+        "available": wallet[0] - wallet[1],
     }
