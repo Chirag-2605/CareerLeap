@@ -180,7 +180,7 @@ export default function App() {
           if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
           return;
         }
-        const token = await candidate.getIdTokenResult();
+        const token = await candidate.getIdTokenResult(true);
         const authTime = Number(token.claims.auth_time) * 1000;
         if (!Number.isFinite(authTime) || Date.now() - authTime >= SESSION_MAX_AGE_MS) {
           clearSessionTimer();
@@ -200,7 +200,10 @@ export default function App() {
       } catch {
         // Fail closed if the current session cannot be verified.
         clearSessionTimer();
-        if (mounted) setUser(null);
+        if (mounted) {
+          setUser(null);
+          showToast("We couldn't verify your session. Please sign in again.", "error");
+        }
         if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
       } finally {
         checking = false;
@@ -260,6 +263,7 @@ export default function App() {
           showToast("Your email isn't verified yet. We've sent a fresh verification link.", "info");
           return;
         }
+        await credential.user.getIdToken(true);
         setUser(credential.user);
         setPassword("");
         showToast("Signed in successfully.", "success");
@@ -379,7 +383,7 @@ export default function App() {
           {authMode === "signup" && <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, a number and a special character.</Text>}
           <Button styles={styles} C={C} title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
           {loadingMode === "auth" && <View style={styles.authLoading}><ActivityIndicator size="small" color={C.blue}/><Text style={styles.bodySmall}>Securely checking your account…</Text></View>}
-          <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
+          <Pressable onPress={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setShowPassword(false); }} style={styles.authSwitch}>
             <Text style={styles.linkCenter}>{authMode === "login" ? "New to CareerLeap? Create an account" : "Already have an account? Sign in"}</Text>
           </Pressable>
         </Card>
