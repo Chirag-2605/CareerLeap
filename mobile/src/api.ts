@@ -24,6 +24,7 @@ export async function analyzeResume(
   }
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
+    "Idempotency-Key": `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`,
   };
 
   const form = new FormData();
@@ -74,4 +75,30 @@ export async function analyzeResume(
   }
 
   return payload;
+}
+
+
+export async function getCreditBalance(): Promise<{ balance: number; reserved: number; available: number }> {
+  const currentUser = auth?.currentUser;
+  if (!currentUser) {
+    throw new Error("Please sign in to view your scan credits.");
+  }
+
+  const token = await currentUser.getIdToken(true);
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/v1/credits/balance`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new Error("Couldn't load your scan credits. Check your connection and try again.");
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = payload.detail;
+    throw new Error(typeof detail === "string" ? detail : "Couldn't load your scan credits.");
+  }
+  return payload as { balance: number; reserved: number; available: number };
 }
