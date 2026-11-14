@@ -1,5 +1,6 @@
 import { auth } from "./firebase";
 import { Platform } from "react-native";
+import { File as ExpoFile } from "expo-file-system";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:8000";
 
@@ -35,14 +36,10 @@ export async function analyzeResume(
     }
     form.append("file", fileBlob, name);
   } else {
-    form.append(
-      "file",
-      {
-        uri,
-        name,
-        type: mimeType || "application/octet-stream",
-      } as any
-    );
+    // Expo SDK 58's FormData serializer accepts Blob implementations.
+    // ExpoFile implements Blob; the legacy { uri, name, type } object is rejected.
+    const nativeFile = new ExpoFile(uri);
+    form.append("file", nativeFile, name);
   }
 
   if (jobDescription.trim()) {
