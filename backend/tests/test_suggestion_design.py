@@ -88,17 +88,16 @@ B.Tech, Example College, 2025
 
 def test_job_match_gaps_become_contextual_prompts_not_keyword_stuffing():
     job_match = {
-        "actionable_suggestions": [
+        "skill_gaps": [
             {
-                "code": "add_missing_skill_kotlin",
-                "priority": "high",
-                "where_to_edit": "Skills section",
+                "skill": "kotlin",
+                "classification": "required",
+                "status": "not_found",
             },
             {
-                "code": "jd_language_gaps",
-                "priority": "medium",
-                "where_to_edit": "Experience section",
-                "what_is_missing": "Missing terms: APIs, collaboration.",
+                "skill": "docker",
+                "classification": "preferred",
+                "status": "not_found",
             },
         ]
     }
@@ -107,5 +106,7 @@ def test_job_match_gaps_become_contextual_prompts_not_keyword_stuffing():
 
     assert len(job_items) == 2
     assert any("genuinely used" in item["why_it_matters"] for item in job_items)
+    assert next(item for item in job_items if "kotlin" in item["code"])["priority"] == "high"
+    assert next(item for item in job_items if "docker" in item["code"])["priority"] == "medium"
     assert all(item["questions_to_answer"] for item in job_items)
     assert all("keyword list" not in item["rewrite_template"].lower() for item in job_items if item["rewrite_template"])
