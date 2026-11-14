@@ -1,4 +1,9 @@
-"""Responsibility matching service using normalized engineering concepts."""
+"""Responsibility matching with conservative, source-linked lexical evidence.
+
+The matcher intentionally avoids synthetic concept expansion: broad labels such
+as "software artifact" or "build concept" caused generic bullets to resemble
+specific engineering responsibilities.
+"""
 import re
 from typing import Any, Dict, Iterable, List, Set, Tuple
 
@@ -9,55 +14,45 @@ STOP = {
     "experience", "ability", "work", "working", "responsible", "reliable",
     "reliability", "scalable", "scale", "clean", "efficient", "maintainable",
     "software", "strong", "good", "knowledge", "understanding", "including",
+    "build", "built", "building", "develop", "developed", "implement",
+    "implemented", "create", "created", "design", "designed", "maintain",
+    "maintained", "support", "supported", "handle", "handling",
 }
 SYNONYMS = {
-    "built": "build", "building": "build", "developed": "build", "develop": "build",
-    "implemented": "build", "created": "build", "designed": "design",
-    "maintained": "maintain", "maintaining": "maintain",
-    "api": "endpoint", "apis": "endpoint", "restful": "rest",
-    "service": "service_component", "services": "service_component",
-    "module": "service_component", "modules": "service_component",
-    "component": "service_component", "components": "service_component",
-    "application": "service_component", "applications": "service_component",
-    "query": "database_query", "queries": "database_query", "sql": "database_query",
-    "optimize": "optimization", "optimized": "optimization",
-    "automated": "automation", "automation": "automation",
+    "interfaces": "interface", "components": "component",
+    "endpoints": "endpoint", "apis": "api", "restful": "rest",
+    "services": "service", "modules": "module", "applications": "application",
+    "queries": "query", "databases": "database", "schemas": "schema",
     "integrated": "integration", "integrating": "integration",
-    "authentication": "auth", "authorization": "auth",
+    "automated": "automation", "automating": "automation",
+    "debugged": "debug", "debugging": "debug",
+    "tested": "test", "testing": "test",
+    "optimized": "optimization", "optimizing": "optimization",
+    "authenticated": "authentication", "authorization": "authentication",
+    "websockets": "websocket",
 }
-CONCEPT_GROUPS = (
-    {"rest", "endpoint", "http", "api"},
-    {"database_query", "database", "postgresql", "mysql", "mongodb", "schema"},
-    {"automation", "integration", "testing", "test"},
-    {"auth", "jwt", "oauth", "security"},
-    {"build", "design", "maintain", "optimization"},
-)
-
 
 def tokens(value: str) -> Set[str]:
     raw = re.findall(r"[a-z][a-z0-9+#.]{1,}", str(value or "").lower())
-    result = {SYNONYMS.get(token.rstrip(".,;:!?"), token.rstrip(".,;:!?"))
-              for token in raw if token not in STOP and len(token) > 2}
-    for group in CONCEPT_GROUPS:
-        if result & group:
-            result.add("concept:" + str(sorted(group)[0]))
-    return result
-
+    return {
+        SYNONYMS.get(token.rstrip(".,;:!?"), token.rstrip(".,;:!?"))
+        for token in raw
+        if token not in STOP and len(token.rstrip(".,;:!?")) > 2
+    }
 
 def similarity(left: str, right: str) -> float:
     a, b = tokens(left), tokens(right)
     if not a or not b:
         return 0.0
-    overlap = len(a & b)
-    if overlap < 2:
+    overlap = a & b
+    if len(overlap) < 2:
         return 0.0
-    return (2.0 * overlap) / float(len(a) + len(b))
-
+    return (2.0 * len(overlap)) / float(len(a) + len(b))
 
 def match_responsibilities(job_lines: Iterable[str], resume_bullets: Iterable[Dict[str, Any]],
-                           threshold: float = 0.14) -> Tuple[List[Dict[str, Any]], int]:
+                           threshold: float = 0.20) -> Tuple[List[Dict[str, Any]], int]:
     bullets = list(resume_bullets)
-    lines = list(dict.fromkeys(line for line in job_lines if len(tokens(line)) >= 4))
+    lines = list(dict.fromkeys(line for line in job_lines if len(tokens(line)) >= 3))
     matches = []
     for line in lines:
         ranked = sorted(((similarity(line, bullet["text"]), bullet) for bullet in bullets),
@@ -76,8 +71,8 @@ def match_responsibilities(job_lines: Iterable[str], resume_bullets: Iterable[Di
             "evidence_type": "direct" if best_score >= 0.30 else "supporting",
             "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
         })
+    best_by_line = {item["job_responsibility"]: item["similarity"] for item in matches}
     score = int(round(25 * sum(
-        min(1.0, {item["job_responsibility"]: item["similarity"] for item in matches}.get(line, 0.0) / 0.45)
-        for line in lines
+        min(1.0, best_by_line.get(line, 0.0) / 0.45) for line in lines
     ) / len(lines))) if lines else None
     return matches, score
