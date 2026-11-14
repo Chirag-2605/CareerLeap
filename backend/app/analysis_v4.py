@@ -649,6 +649,10 @@ def _level(text: str) -> Optional[str]:
     for level in ("lead", "senior", "mid", "entry", "intern"):
         if any(_has(lowered, phrase) for phrase in LEVEL_TERMS[level]):
             return level
+    # A numeric experience window is an explicit seniority signal even when
+    # the JD omits words such as "junior" or "graduate".
+    if re.search(r"\\b0\\s*(?:-|–|—|to)\\s*[0-3]\\s*(?:years?|yrs?)\\b", lowered):
+        return "entry"
     return None
 
 
