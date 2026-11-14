@@ -30,7 +30,7 @@ app.add_middleware(
     allow_origins=origins or ["http://localhost:8081"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
 )
 
 
@@ -60,8 +60,6 @@ async def analyze(
 
     reservation_id = None
     if settings.credits_enabled:
-        if not job_description or not job_description.strip():
-            raise HTTPException(status_code=422, detail="A job description is required when credits are enabled.")
         if not idempotency_key:
             raise HTTPException(status_code=400, detail="Idempotency-Key header is required when credits are enabled.")
         reservation_id = reserve_scan_credit(user["uid"], idempotency_key)
