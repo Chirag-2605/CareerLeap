@@ -190,7 +190,7 @@ def _quality_actionable_suggestions(text: str, sections_present: dict):
     weak_bullets = []
     for number, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
-        if len(line.split()) < 6 or not BULLET_RE.match(line):
+        if len(line.split()) < 5 or not BULLET_RE.match(line):
             continue
         clean = BULLET_RE.sub("", line).strip()
         first = re.findall(r"[a-z]+", clean.lower())[:1]
