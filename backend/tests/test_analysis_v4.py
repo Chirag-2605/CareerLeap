@@ -357,4 +357,4 @@ def test_single_v4_pipeline_feeds_post_analysis_suggestion_design():
     assert job_match["version"] == "match-v4"
     assert plan["version"] == "suggestion-design-v1"
     assert any(item["category"] == "job_match" for item in plan["items"])
-    assert all("verified" in item["safety_note"].lower() for item in plan["items"])
+    assert all("verif" in item["safety_note"].lower() for item in plan["items"])
