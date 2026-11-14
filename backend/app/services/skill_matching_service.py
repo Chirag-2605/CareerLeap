@@ -14,7 +14,7 @@ SEMANTIC_EVIDENCE = {
     },
     "http": {
         "direct": ("http", "http protocol", "http methods", "https"),
-        "supporting": ("rest api", "restful api", "restful services"),
+        "supporting": ("rest api", "rest apis", "restful api", "restful apis", "restful services"),
     },
     "relational databases": {
         "direct": ("relational database", "relational databases", "postgresql", "postgres", "mysql", "sql server", "sqlite"),
