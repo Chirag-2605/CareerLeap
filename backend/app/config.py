@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:8081"
     firebase_service_account_json: Optional[str] = None
     database_url: Optional[str] = None
+    credits_enabled: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
