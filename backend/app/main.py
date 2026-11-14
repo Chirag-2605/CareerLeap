@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional
-from fastapi import FastAPI, Depends, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, Depends, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import require_user
@@ -9,6 +9,12 @@ from .config import settings
 from .parser_v2 import parse_resume_v2
 from .analysis_v4 import analyze_quality_v4, analyze_job_match_v4
 from .suggestion_design import design_suggestions
+from .credits import (
+    router as credits_router,
+    reserve_scan_credit,
+    commit_scan_credit,
+    release_scan_credit,
+)
 
 app = FastAPI(
     title="Resume Analyzer API",
@@ -16,13 +22,15 @@ app = FastAPI(
     description="Single evidence-based V4 resume analyzer with post-analysis suggestions. Resume content is not persisted."
 )
 
+app.include_router(credits_router)
+
 origins = [x.strip() for x in settings.cors_origins.split(",") if x.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins or ["http://localhost:8081"],
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
 )
 
 
@@ -36,6 +44,7 @@ async def analyze(
     file: UploadFile = File(...),
     job_description: Optional[str] = Form(default=None),
     user: dict = Depends(require_user),
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
 ):
     """Run the single production V4 analyzer and then design its suggestions."""
     filename = file.filename or "resume"
@@ -48,6 +57,12 @@ async def analyze(
             status_code=413,
             detail="File is too large. Maximum size is {0} MB.".format(settings.max_upload_mb),
         )
+
+    reservation_id = None
+    if settings.credits_enabled:
+        if not idempotency_key:
+            raise HTTPException(status_code=400, detail="Idempotency-Key header is required when credits are enabled.")
+        reservation_id = reserve_scan_credit(user["uid"], idempotency_key)
 
     try:
         parsed = parse_resume_v2(filename, content)
@@ -87,6 +102,8 @@ async def analyze(
             )
 
         document = parsed.get("document", {})
+        if reservation_id:
+            commit_scan_credit(user["uid"], reservation_id)
         return {
             "quality": quality,
             "job_match": job_match,
@@ -101,6 +118,12 @@ async def analyze(
             },
         }
     except ValueError as exc:
+        if reservation_id:
+            release_scan_credit(user["uid"], reservation_id)
         raise HTTPException(status_code=422, detail=str(exc))
+    except Exception:
+        if reservation_id:
+            release_scan_credit(user["uid"], reservation_id)
+        raise
     finally:
         await file.close()

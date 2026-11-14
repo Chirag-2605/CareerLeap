@@ -115,3 +115,19 @@ pytest
 - Add abuse protection/rate limits before public launch.
 - Benchmark extraction and scoring against human-reviewed examples before making accuracy claims.
 - Image-only/scanned PDFs require OCR, which is not included in the current parser.
+
+## Credits database (Neon PostgreSQL)
+
+The first credit-ledger milestone uses Neon PostgreSQL while Firebase remains the identity provider.
+
+1. Create a Neon project and database.
+2. Set `DATABASE_URL` in the backend environment to the Neon pooled or direct connection string (keep credentials server-side).
+3. Apply `backend/migrations/001_credit_ledger.sql` once to the target database.
+4. Install the updated backend requirements.
+5. Set `CREDITS_ENABLED=true` only after the migration has been applied and the database connection has been verified.
+
+The authenticated endpoints are:
+- `GET /api/v1/credits/balance` — lazily creates a wallet and grants the initial three credits exactly once.
+- `GET /api/v1/credits/transactions` — returns the authenticated user's latest ledger entries.
+
+When `CREDITS_ENABLED=true`, the existing `/api/v1/analyze` endpoint requires a target job description and an `Idempotency-Key` header. It reserves one credit before analysis, commits the debit only after successful analysis, and releases the reservation when analysis raises an error. The mobile app must be updated to send a fresh stable idempotency key per scan before enabling this flag for real users. Razorpay and mobile purchase flows are subsequent milestones. The flag defaults to false so deployments do not accidentally enable an unconfigured wallet. Never commit the Neon connection string.
