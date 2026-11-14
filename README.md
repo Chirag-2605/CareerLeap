@@ -115,3 +115,19 @@ pytest
 - Add abuse protection/rate limits before public launch.
 - Benchmark extraction and scoring against human-reviewed examples before making accuracy claims.
 - Image-only/scanned PDFs require OCR, which is not included in the current parser.
+
+## Credits database (Neon PostgreSQL)
+
+The first credit-ledger milestone uses Neon PostgreSQL while Firebase remains the identity provider.
+
+1. Create a Neon project and database.
+2. Set `DATABASE_URL` in the backend environment to the Neon pooled or direct connection string (keep credentials server-side).
+3. Apply `backend/migrations/001_credit_ledger.sql` once to the target database.
+4. Install the updated backend requirements.
+5. Set `CREDITS_ENABLED=true` only after the migration has been applied and the database connection has been verified.
+
+The authenticated endpoints are:
+- `GET /api/v1/credits/balance` — lazily creates a wallet and grants the initial three credits exactly once.
+- `GET /api/v1/credits/transactions` — returns the authenticated user's latest ledger entries.
+
+The analyzer is intentionally not yet charging credits in this milestone. Do not enable `CREDITS_ENABLED` in production until scan reservation/commit/release is integrated and tested. Razorpay and mobile purchase flows are subsequent milestones. Never commit the Neon connection string.
