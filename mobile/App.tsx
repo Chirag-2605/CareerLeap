@@ -239,7 +239,7 @@ export default function App() {
   };
 
   if (!authReady || showSplash) return <SafeAreaView style={styles.splashSafe}>
-    <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} backgroundColor={C.soft}/>
+    <StatusBar barStyle={darkMode ? "light-content" : "dark-content"}/>
     <Animated.View style={[styles.splashContent, { opacity: splashOpacity }]}>
       <Animated.View style={[styles.splashLogo, { transform: [{ scale: splashScale }] }]}>
         <Text style={styles.splashLogoText}>C</Text>
