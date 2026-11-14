@@ -16,7 +16,12 @@ export async function analyzeResume(
     throw new Error("Please sign in before analyzing a resume.");
   }
 
-  const token = await currentUser.getIdToken(true);
+  let token: string;
+  try {
+    token = await currentUser.getIdToken(true);
+  } catch {
+    throw new Error("Your session couldn't be refreshed. Please sign in again.");
+  }
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
   };
@@ -46,11 +51,16 @@ export async function analyzeResume(
     form.append("job_description", jobDescription.trim());
   }
 
-  const response = await fetch(`${API_URL}/api/v1/analyze`, {
-    method: "POST",
-    headers,
-    body: form,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/v1/analyze`, {
+      method: "POST",
+      headers,
+      body: form,
+    });
+  } catch {
+    throw new Error("Couldn't connect to CareerLeap. Check your internet connection and try again.");
+  }
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
