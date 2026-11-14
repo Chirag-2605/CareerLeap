@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Alert, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -74,6 +74,9 @@ export default function App() {
   const C = darkMode ? DARK_THEME : LIGHT_THEME;
   const styles = useMemo(() => createStyles(C), [darkMode]);
   const [authReady, setAuthReady] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
+  const splashScale = useRef(new Animated.Value(0.88)).current;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login"|"signup">("login");
@@ -87,6 +90,24 @@ export default function App() {
   const [showScanner, setShowScanner] = useState(false);
 
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    Animated.spring(splashScale, { toValue: 1, speed: 14, bounciness: 5, useNativeDriver: true }).start();
+  }, [splashScale]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    const timer = setTimeout(() => {
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 380,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setShowSplash(false);
+      });
+    }, 850);
+    return () => clearTimeout(timer);
+  }, [authReady, splashOpacity]);
 
   useEffect(() => {
     const firebaseAuth = auth;
@@ -217,7 +238,16 @@ export default function App() {
     setShowScanner(false);
   };
 
-  if (!authReady) return <SafeAreaView style={styles.center}><ActivityIndicator color={C.blue}/></SafeAreaView>;
+  if (!authReady || showSplash) return <SafeAreaView style={styles.splashSafe}>
+    <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} backgroundColor={C.soft}/>
+    <Animated.View style={[styles.splashContent, { opacity: splashOpacity }]}>
+      <Animated.View style={[styles.splashLogo, { transform: [{ scale: splashScale }] }]}>
+        <Text style={styles.splashLogoText}>C</Text>
+      </Animated.View>
+      <Text style={styles.splashTitle}>CareerLeap</Text>
+      <Text style={styles.splashSubtitle}>CAREER COMPANION</Text>
+    </Animated.View>
+  </SafeAreaView>;
 
   return <SafeAreaView style={styles.safe}>
     <StatusBar barStyle={darkMode ? "light-content" : "dark-content"} />
@@ -390,6 +420,12 @@ function Finding({finding, styles, C}: any) {
 }
 
 function createStyles(C: any) { return StyleSheet.create({
+  splashSafe:{flex:1,backgroundColor:C.soft},
+  splashContent:{flex:1,alignItems:"center",justifyContent:"center",backgroundColor:C.soft},
+  splashLogo:{width:88,height:88,borderRadius:28,backgroundColor:C.navy,alignItems:"center",justifyContent:"center",elevation:8,shadowColor:"#000000",shadowOpacity:.16,shadowRadius:18,shadowOffset:{width:0,height:8}},
+  splashLogoText:{fontSize:48,fontWeight:"900",color:"#FFFFFF",letterSpacing:-2},
+  splashTitle:{fontSize:26,fontWeight:"900",color:C.ink,letterSpacing:-.8,marginTop:20},
+  splashSubtitle:{fontSize:10,fontWeight:"800",color:C.muted,letterSpacing:2.4,marginTop:7},
   keyboardArea:{flex:1},
   themeToggle:{paddingHorizontal:11,paddingVertical:8,borderRadius:18,backgroundColor:C.blueSoft},
   themeToggleText:{fontSize:11,fontWeight:"800",color:C.blue},
