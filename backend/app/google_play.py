@@ -21,7 +21,7 @@ def obfuscated_account_id(user_id: str) -> str:
 
 
 def verify_product_purchase(product_id: str, purchase_token: str, user_id: str) -> Dict[str, Any]:
-    """Verify an unconsumed one-time product purchase directly with Google Play."""
+    """Verify a one-time product purchase with the current Google Play purchases v2 API."""
     if product_id not in PRODUCT_CREDITS:
         raise HTTPException(status_code=400, detail="Unknown Google Play credit product.")
     if not purchase_token or len(purchase_token) > 4096:
@@ -41,15 +41,9 @@ def verify_product_purchase(product_id: str, purchase_token: str, user_id: str) 
         session = AuthorizedSession(credentials)
         url = (
             "https://androidpublisher.googleapis.com/androidpublisher/v3/"
-            "applications/{}/purchases/products/{}/tokens/{}"
-        ).format(
-            settings.google_play_package_name,
-            product_id,
-            purchase_token,
-        )
+            "applications/{}/purchases/productsv2/tokens/{}"
+        ).format(settings.google_play_package_name, purchase_token)
         response = session.get(url, timeout=12)
-    except HTTPException:
-        raise
     except Exception:
         raise HTTPException(status_code=503, detail="Google Play verification is temporarily unavailable.")
 
@@ -60,7 +54,6 @@ def verify_product_purchase(product_id: str, purchase_token: str, user_id: str) 
             raise HTTPException(status_code=503, detail="Google Play verification credentials need attention.")
         if response.status_code != 200:
             raise HTTPException(status_code=503, detail="Google Play verification is temporarily unavailable.")
-
         purchase = response.json()
     except HTTPException:
         raise
@@ -73,14 +66,20 @@ def verify_product_purchase(product_id: str, purchase_token: str, user_id: str) 
         except Exception:
             pass
 
-    if purchase.get("productId") != product_id:
-        raise HTTPException(status_code=400, detail="The purchased product does not match the selected credit pack.")
-    if purchase.get("purchaseState") != 0:
+    purchase_state = (purchase.get("purchaseStateContext") or {}).get("purchaseState")
+    if purchase_state != "PURCHASED":
         raise HTTPException(status_code=409, detail="This Google Play purchase is not completed. Pending purchases cannot add credits.")
-    if purchase.get("consumptionState") != 0:
+
+    line_items = purchase.get("productLineItem") or []
+    if len(line_items) != 1 or line_items[0].get("productId") != product_id:
+        raise HTTPException(status_code=400, detail="The purchased product does not match the selected credit pack.")
+
+    offer_details = line_items[0].get("productOfferDetails") or {}
+    if offer_details.get("consumptionState") != "CONSUMPTION_STATE_YET_TO_BE_CONSUMED":
         raise HTTPException(status_code=409, detail="This Google Play purchase has already been consumed.")
-    if int(purchase.get("quantity", 1)) != 1:
+    if int(offer_details.get("quantity", 1)) != 1:
         raise HTTPException(status_code=400, detail="Bulk quantities are not supported for this credit pack.")
+
     expected_account_id = obfuscated_account_id(user_id)
     if purchase.get("obfuscatedExternalAccountId") != expected_account_id:
         raise HTTPException(status_code=403, detail="This purchase is not associated with the signed-in CareerLeap account.")
@@ -89,5 +88,5 @@ def verify_product_purchase(product_id: str, purchase_token: str, user_id: str) 
         "product_id": product_id,
         "credits": PRODUCT_CREDITS[product_id],
         "order_id": purchase.get("orderId"),
-        "purchase_time_millis": purchase.get("purchaseTimeMillis"),
+        "purchase_completion_time": purchase.get("purchaseCompletionTime"),
     }
