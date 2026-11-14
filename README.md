@@ -130,4 +130,4 @@ The authenticated endpoints are:
 - `GET /api/v1/credits/balance` — lazily creates a wallet and grants the initial three credits exactly once.
 - `GET /api/v1/credits/transactions` — returns the authenticated user's latest ledger entries.
 
-The analyzer is intentionally not yet charging credits in this milestone. Do not enable `CREDITS_ENABLED` in production until scan reservation/commit/release is integrated and tested. Razorpay and mobile purchase flows are subsequent milestones. Never commit the Neon connection string.
+When `CREDITS_ENABLED=true`, the existing `/api/v1/analyze` endpoint requires a target job description and an `Idempotency-Key` header. It reserves one credit before analysis, commits the debit only after successful analysis, and releases the reservation when analysis raises an error. The mobile app must be updated to send a fresh stable idempotency key per scan before enabling this flag for real users. Razorpay and mobile purchase flows are subsequent milestones. The flag defaults to false so deployments do not accidentally enable an unconfigured wallet. Never commit the Neon connection string.
