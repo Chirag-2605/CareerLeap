@@ -214,7 +214,8 @@ def design_suggestions(
     project_bullets = [item for item in project_lines if BULLET_RE.match(item["text"])]
     substantive_project_bullets = [
         item for item in project_bullets
-        if len(re.findall(r"\b[\w+#.]+\b", item["text"])) >= 9 and _contains_skill(item["text"])
+        if len(re.findall(r"\b[\w+#.]+\b", item["text"])) >= 8
+        and (_contains_skill(item["text"]) or TECHNICAL_DETAIL_RE.search(item["text"]))
     ]
     if project_lines and (not project_bullets or len(substantive_project_bullets) < min(2, len(project_lines))):
         source = next((item for item in project_lines if not BULLET_RE.match(item["text"])), project_lines[0])
