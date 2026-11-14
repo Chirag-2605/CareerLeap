@@ -796,8 +796,12 @@ function GooglePlayCreditStore({ visible, user, styles, C, onClose, onCredited, 
       }
       try {
         const result = await verifyGooglePlayCreditPurchase(purchase.productId, purchase.purchaseToken);
-        await finishTransaction({ purchase, isConsumable: true });
         await onCredited(result);
+        try {
+          await finishTransaction({ purchase, isConsumable: true });
+        } catch {
+          showToast("Your credits were added. Google Play still needs to finalize the purchase; keep the app connected and reopen it if prompted.", "info");
+        }
       } catch (error: any) {
         showToast(error?.message || "We couldn't complete your purchase yet. Please keep the app open and retry.", "error");
       }
