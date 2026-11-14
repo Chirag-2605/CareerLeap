@@ -15,10 +15,10 @@ SCHEMA_VERSION = "resume-v2"
 
 # Keep these aliases conservative: a heading must match as a complete line.
 SECTION_ALIASES = {
-    "summary": ("summary", "professional summary", "profile", "objective", "career objective", "about me"),
+    "summary": ("summary", "professional summary", "profile", "professional profile", "career profile", "objective", "career objective", "about me"),
     "experience": ("experience", "work experience", "professional experience", "employment history", "employment", "internship"),
     "education": ("education", "academic background", "qualifications", "academic qualifications"),
-    "skills": ("skills", "technical skills", "technical highlights", "core competencies", "competencies", "areas of expertise"),
+    "skills": ("skills", "my skills", "technical skills", "key skills", "skill set", "technical highlights", "core competencies", "competencies", "areas of expertise"),
     "projects": ("projects", "personal projects", "academic projects", "selected projects"),
     "certifications": ("certifications", "certificates", "licenses", "licences"),
     "awards": ("awards", "honors", "honours", "achievements"),
