@@ -4,6 +4,9 @@ The source PDFs are intentionally not committed. These fixtures preserve only
 resume facts needed to test parser provenance, skill evidence and job matching.
 """
 from io import BytesIO
+import argparse
+import json
+from pathlib import Path
 
 from docx import Document
 
@@ -176,3 +179,55 @@ def test_resume_quality_order_is_consistent_with_three_anonymized_profiles():
         analyze_quality_v4(bad_generic_resume())["score"],
     ]
     assert scores[0] > scores[1] > scores[2]
+
+
+
+def build_regression_report():
+    """Return comparable quality and job-match output for all three fixtures."""
+    profiles = (
+        ("strong_engineering", strong_engineering_resume()),
+        ("fresh_data_analyst", fresh_data_analyst_resume()),
+        ("bad_generic", bad_generic_resume()),
+    )
+    report = {"job_description": "Full Stack Developer — Entry-Level / 0–3 years", "profiles": []}
+    for name, resume in profiles:
+        quality = analyze_quality_v4(resume)
+        match = analyze_job_match_v4(resume, FULL_STACK_JD)
+        report["profiles"].append({
+            "profile": name,
+            "resume_quality": quality["score"],
+            "quality_breakdown": quality["breakdown"],
+            "job_match": match["score"],
+            "job_match_status": match["score_status"],
+            "job_match_breakdown": match["breakdown"],
+            "required_skill_matches": match["skill_matches"],
+            "missing_required_skills": match["missing_required_skills"],
+            "missing_preferred_skills": match["missing_preferred_skills"],
+            "responsibility_matches": match["responsibility_matches"],
+            "role_alignment": match["role_alignment"],
+            "seniority_alignment": match["seniority_alignment"],
+        })
+    return report
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Generate a local, comparable CareerLeap analyzer regression report."
+    )
+    parser.add_argument(
+        "--output", default="artifacts/analyzer-regression-report.json",
+        help="JSON output path (default: artifacts/analyzer-regression-report.json)",
+    )
+    args = parser.parse_args()
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    result = build_regression_report()
+    output_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print("Wrote analyzer regression report to {0}".format(output_path))
+    for item in result["profiles"]:
+        print(
+            "{0}: quality={1}/100, job_match={2}".format(
+                item["profile"], item["resume_quality"],
+                str(item["job_match"]) + "/100" if item["job_match"] is not None else "not assessed",
+            )
+        )
