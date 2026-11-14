@@ -5,6 +5,7 @@ from docx import Document
 
 from app.parser_v2 import parse_resume_v2
 from app.analysis_v4 import analyze_quality_v4, analyze_job_match_v4
+from app.suggestion_design import design_suggestions
 
 
 def parse_lines(lines):
@@ -338,3 +339,50 @@ def test_v4_matches_added_core_skills_but_does_not_infer_http_from_api_developme
     }
     assert result["missing_required_skills"] == ["http"]
     assert all(item["status"] == "listed" for item in result["skill_matches"])
+
+
+
+def test_single_v4_pipeline_feeds_post_analysis_suggestion_design():
+    parsed = weak_resume()
+    quality = analyze_quality_v4(parsed)
+    job_match = analyze_job_match_v4(
+        parsed,
+        "Required Qualifications:\n- Python\n- Kotlin\n"
+        "Responsibilities:\n- Build and maintain backend services using Python.",
+    )
+    resume_text = "\n".join(item["text"] for item in parsed["evidence"])
+    plan = design_suggestions(resume_text, quality, job_match)
+
+    assert quality["version"] == "quality-v4"
+    assert job_match["version"] == "match-v4"
+    assert plan["version"] == "suggestion-design-v1"
+    assert any(item["category"] == "job_match" for item in plan["items"])
+    assert all("verif" in item["safety_note"].lower() for item in plan["items"])
+
+
+
+def test_one_of_programming_languages_is_counted_as_one_required_group():
+    result = analyze_job_match_v4(
+        strong_resume(),
+        "Software Engineer\nRequired Qualifications:\n"
+        "- Strong proficiency in at least one of Java, Python, C++, JavaScript, or TypeScript.\n"
+        "Responsibilities:\n- Build and maintain reliable software services.",
+    )
+    assert result["assessment_coverage"]["required_skills"] == 1
+    assert "programming_language" in result["matched_required_skills"]
+
+
+def test_sdet_tooling_is_recognized_as_job_and_resume_skill_evidence():
+    resume = parse_lines([
+        "Alex Doe", "Skills", "Python, Playwright, pytest, SQL",
+        "Experience", "QA Automation Intern",
+        "• Built API regression tests using Python, Playwright, and pytest.",
+        "Education", "Example University",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "SDET\nRequired Qualifications:\n- Python\n- Playwright\n- pytest\n"
+        "Responsibilities:\n- Build and maintain API regression tests.",
+    )
+    assert "playwright" in result["matched_required_skills"]
+    assert "pytest" in result["matched_required_skills"]

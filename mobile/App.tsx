@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import {
-  createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword,
-  signOut, User
+  createUserWithEmailAndPassword, onAuthStateChanged, reload, sendEmailVerification,
+  signInWithEmailAndPassword, signOut, User
 } from "firebase/auth";
 import { auth, firebaseConfigured } from "./src/firebase";
 import { analyzeResume } from "./src/api";
@@ -16,47 +16,241 @@ import { DARK_THEME, LIGHT_THEME } from "./src/theme";
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
+const EMAIL_LOCAL_RE = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/i;
+const EMAIL_LABEL_RE = /^[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?$/i;
 
 type Report = any;
+type ToastTone = "success" | "error" | "info";
+function isValidEmail(value: string) {
+  const email = value.trim();
+  if (!email || email.length > 254 || email.includes("..")) return false;
+  const parts = email.split("@");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length > 64 || !EMAIL_LOCAL_RE.test(local) || local.startsWith(".") || local.endsWith(".")) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 && labels.every(label => label.length > 0 && label.length <= 63 && EMAIL_LABEL_RE.test(label))
+    && /^[A-Z]{2,63}$/i.test(labels[labels.length - 1]);
+}
 function firebaseAuthMessage(error: any) {
   const code = error?.code || "";
-  if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") {
-    return "Firebase Authentication is not fully configured. In Firebase Console, open Authentication → Sign-in method and enable Email/Password, then try again.";
-  }
-  if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") {
-    return "The Firebase API key is invalid. Check EXPO_PUBLIC_FIREBASE_API_KEY in mobile/.env and restart Expo.";
-  }
-  if (code === "auth/network-request-failed") {
-    return "Couldn't reach Firebase. Check your internet connection and try again.";
-  }
-  return error?.message || "Please try again.";
+  if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") return "Email sign-in is not enabled yet. Please contact support.";
+  if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") return "Authentication is temporarily unavailable. Please try again later.";
+  if (code === "auth/network-request-failed") return "Couldn't reach the sign-in service. Check your internet connection.";
+  if (code === "auth/invalid-email") return "Enter a valid email address.";
+  if (code === "auth/email-already-in-use") return "An account with this email already exists. Try signing in.";
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Incorrect email or password.";
+  if (code === "auth/weak-password") return "Choose a stronger password.";
+  if (code === "auth/too-many-requests") return "Too many attempts. Please wait a moment and try again.";
+  if (code === "auth/user-disabled") return "This account is disabled. Please contact support.";
+  return "Authentication couldn't be completed. Please try again.";
 }
 
+const SCAN_STEPS = [
+  "Uploading your resume securely",
+  "Extracting text and resume sections",
+  "Reviewing skills and experience",
+  "Preparing your personalized suggestions",
+];
 
 const ROLE_TEMPLATES = [
   {
     title: "Software Engineer",
-    jd: `We are looking for a Software Engineer to design, develop, test, and maintain reliable software applications. You will collaborate with product managers, designers, and engineers to understand requirements and deliver maintainable solutions. Responsibilities include writing clean and efficient code, designing APIs and data models, debugging issues, reviewing code, improving application performance, and contributing to technical discussions. You should have a strong foundation in data structures, algorithms, object-oriented programming, and software engineering principles. Experience with one or more programming languages, databases, version control, testing, and building or integrating APIs is valuable. We value problem-solving ability, clear communication, ownership, and a willingness to learn.`,
+    jd: `Role: Entry-Level Software Engineer
+Level: Graduate / 0–2 years
+
+Role overview:
+Build, test, and maintain reliable software products and backend services. Work with engineers and product partners to turn requirements into secure, maintainable implementations.
+
+Key responsibilities:
+- Design and implement application features, APIs, data models, and reusable components.
+- Solve programming problems involving data structures, algorithms, object-oriented design, and core computer science concepts.
+- Debug defects, investigate production issues, write unit and integration tests, and improve code quality.
+- Review code, document technical decisions, and participate in design discussions.
+- Work with relational or NoSQL databases, version control, and CI/CD workflows.
+
+Required qualifications:
+- Strong programming proficiency in at least one of Java, Python, C++, JavaScript, or TypeScript.
+- Data structures and algorithms, object-oriented programming, and problem-solving fundamentals.
+- SQL and relational database concepts such as joins, indexes, and transactions.
+- REST API fundamentals, Git-based version control, debugging, and unit testing.
+- Understanding of operating systems, networking, and software development lifecycle.
+
+Preferred qualifications:
+- Experience with Spring Boot, Node.js, React, or another production framework.
+- Exposure to PostgreSQL, MySQL, MongoDB, Redis, or cloud platforms such as AWS.
+- Familiarity with Docker, CI/CD, distributed systems, or automated integration testing.
+- Internship, open-source, or personal project experience demonstrating shipped software.`,
   },
   {
     title: "Frontend Engineer",
-    jd: `We are looking for a Frontend Engineer to build responsive, accessible, and user-friendly web applications. You will translate product and design requirements into reusable UI components, integrate frontend applications with backend APIs, and improve performance and usability. Responsibilities include developing and maintaining interfaces, managing application state, handling browser compatibility, writing maintainable code and tests, debugging production issues, and collaborating with design and backend teams. Strong JavaScript and HTML/CSS fundamentals are expected. Experience with React or another modern frontend framework, TypeScript, responsive design, REST APIs, Git, and frontend testing is useful. We value attention to detail, problem-solving, and a focus on user experience.`,
+    jd: `Role: Frontend Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Build fast, accessible, responsive web interfaces and turn product designs into dependable user experiences. Partner with design, product, and backend teams throughout feature delivery.
+
+Key responsibilities:
+- Develop reusable UI components, page layouts, and interactive workflows.
+- Translate product requirements and design specifications into responsive interfaces.
+- Integrate REST APIs, handle asynchronous states and errors, and manage client-side application state.
+- Improve rendering performance, accessibility, browser compatibility, and frontend reliability.
+- Write component and end-to-end tests, debug UI defects, and participate in code reviews.
+
+Required qualifications:
+- JavaScript (ES6+) and TypeScript fundamentals.
+- React, component architecture, hooks, and state management.
+- HTML5, CSS3, responsive design, and accessibility fundamentals.
+- REST APIs, JSON, asynchronous programming, Git, and browser debugging.
+- Understanding of frontend testing and basic web performance concepts.
+
+Preferred qualifications:
+- Next.js, React Query, Redux, Zustand, or comparable state/data libraries.
+- Jest, React Testing Library, Playwright, or Cypress.
+- Experience with design systems, Storybook, WebSockets, or real-time interfaces.
+- Familiarity with performance profiling, semantic HTML, and WCAG accessibility practices.`,
   },
   {
     title: "Backend Engineer",
-    jd: `We are looking for a Backend Engineer to design, build, and maintain scalable and reliable services. You will develop APIs and backend components, work with databases and data models, integrate external systems, and help ensure application security, performance, and reliability. Responsibilities include writing maintainable code, debugging and resolving service issues, designing efficient queries, implementing tests, participating in code reviews, and contributing to system design discussions. Strong programming, data structures, algorithms, and database fundamentals are expected. Experience with Java, Kotlin, Python, Node.js, or similar languages; REST APIs; SQL or NoSQL databases; distributed systems; and cloud platforms is valuable. We value ownership, sound engineering judgment, and collaboration.`,
+    jd: `Role: Backend Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Design and operate secure, observable backend services that power customer-facing applications. Build APIs and data workflows with attention to correctness, performance, and maintainability.
+
+Key responsibilities:
+- Design, implement, document, and maintain REST APIs and service-side business logic.
+- Model relational and NoSQL data, write efficient queries, and reason about indexes and transactions.
+- Implement authentication, authorization, input validation, and secure service integrations.
+- Diagnose bugs and performance bottlenecks; add logs, metrics, tests, and operational safeguards.
+- Participate in code reviews, system design discussions, and deployment/release workflows.
+
+Required qualifications:
+- Proficiency in at least one of Java, Kotlin, Python, or Node.js.
+- Data structures, algorithms, object-oriented programming, and API design fundamentals.
+- SQL, relational database design, joins, indexes, and transaction concepts.
+- REST APIs, HTTP, JSON, Git, and unit/integration testing.
+- Understanding of authentication, error handling, concurrency, and debugging.
+
+Preferred qualifications:
+- Spring Boot, Express.js, FastAPI, or another backend framework.
+- PostgreSQL, MySQL, MongoDB, Redis, caching, or message queues.
+- AWS, Docker, Kubernetes, CI/CD, observability, or infrastructure as code.
+- Exposure to distributed systems, database optimization, and service reliability.`,
   },
   {
     title: "Full Stack Developer",
-    jd: `We are looking for a Full Stack Developer to build and maintain end-to-end web applications. You will develop responsive frontend experiences, implement backend services and APIs, integrate databases, and collaborate with cross-functional teams to deliver product features. Responsibilities include translating requirements into technical solutions, building reusable UI components, designing data models, writing tests, debugging issues, reviewing code, and improving application performance. Strong programming fundamentals and experience with JavaScript or TypeScript are expected. Experience with React or a similar frontend framework, backend technologies such as Node.js, Java, or Python, REST APIs, databases, Git, and cloud services is useful. We value adaptability, communication, and an end-to-end approach to problem-solving.`,
+    jd: `Role: Full Stack Developer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Deliver complete product features across frontend, backend, and data layers. Work from user requirements through implementation, testing, and deployment.
+
+Key responsibilities:
+- Build responsive interfaces and reusable components using a modern frontend framework.
+- Implement backend endpoints, business logic, validation, and authentication flows.
+- Design database schemas and integrate relational or NoSQL storage.
+- Connect frontend experiences to APIs and handle loading, empty, success, and error states.
+- Test features, debug issues across the stack, review code, and support deployments.
+
+Required qualifications:
+- JavaScript or TypeScript, React, HTML, CSS, and responsive UI development.
+- Backend development using Node.js, Java, Python, or a comparable language.
+- REST API design and integration, HTTP, JSON, and asynchronous programming.
+- SQL and database fundamentals; familiarity with at least one relational or NoSQL database.
+- Git, debugging, testing, data structures, and object-oriented programming fundamentals.
+
+Preferred qualifications:
+- Express.js, Next.js, Spring Boot, or similar frameworks.
+- PostgreSQL, MySQL, MongoDB, Redis, or cloud-hosted databases.
+- JWT, OAuth, role-based access control, WebSockets, or third-party integrations.
+- Docker, AWS, CI/CD, automated testing, and end-to-end deployment experience.`,
   },
   {
     title: "Machine Learning Engineer",
-    jd: `We are looking for a Machine Learning Engineer to develop, evaluate, and deploy data-driven solutions. You will work with engineers, data scientists, and product teams to translate business problems into measurable machine learning tasks. Responsibilities include preparing and analyzing datasets, training and evaluating models, building reproducible experiments, improving model performance, deploying inference workflows, and monitoring model behavior. Strong Python, programming, data structures, statistics, and machine learning fundamentals are expected. Experience with common ML frameworks, data processing, model evaluation, SQL, APIs, and cloud or MLOps tooling is valuable. We value experimental rigor, clear communication, and the ability to explain technical trade-offs.`,
+    jd: `Role: Machine Learning Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Develop and evaluate machine learning solutions for practical product or business problems. Build reproducible data and model workflows and communicate model performance and limitations.
+
+Key responsibilities:
+- Translate problem statements into supervised or unsupervised learning tasks and evaluation plans.
+- Collect, clean, transform, and analyze structured or unstructured datasets.
+- Train, validate, compare, and tune models; select metrics appropriate to the task.
+- Build reproducible experiments, track model versions, and investigate errors and data leakage.
+- Package inference workflows, integrate models with APIs, and collaborate on deployment and monitoring.
+
+Required qualifications:
+- Python programming, data structures, and software engineering fundamentals.
+- Statistics, probability, linear algebra, and core machine learning concepts.
+- Data manipulation using NumPy and pandas or equivalent tools.
+- Model training, validation, overfitting, feature engineering, and evaluation metrics.
+- SQL and the ability to explain model choices, trade-offs, and limitations.
+
+Preferred qualifications:
+- scikit-learn, PyTorch, TensorFlow, or Keras.
+- NLP, computer vision, recommendation systems, or time-series modeling.
+- Experiment tracking, Docker, REST APIs, AWS, or other cloud platforms.
+- MLOps, model serving, monitoring, and data pipeline experience.`,
   },
   {
     title: "DevOps / Cloud Engineer",
-    jd: `We are looking for a DevOps / Cloud Engineer to improve the reliability, scalability, and delivery of software systems. You will work with development teams to automate infrastructure and deployment workflows, monitor services, and improve operational practices. Responsibilities include maintaining CI/CD pipelines, managing cloud resources, automating repeatable tasks, monitoring application health, troubleshooting incidents, and applying security and access-control best practices. Strong Linux, scripting, networking, and problem-solving fundamentals are expected. Experience with AWS or another cloud platform, Docker, Kubernetes, Terraform, Git, observability tools, and CI/CD systems is useful. We value ownership, operational discipline, and collaboration across engineering teams.`,
+    jd: `Role: DevOps / Cloud Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Help engineering teams ship software reliably by automating infrastructure, delivery pipelines, and operational workflows. Improve service observability, security, and recovery practices.
+
+Key responsibilities:
+- Build and maintain CI/CD pipelines for automated build, test, and deployment workflows.
+- Provision and configure cloud resources; manage environments and infrastructure changes.
+- Automate operational tasks with Python, Bash, or similar scripting languages.
+- Containerize applications, support orchestration, and troubleshoot deployment failures.
+- Monitor service health, investigate incidents, manage logs/metrics, and document runbooks.
+- Apply least-privilege access, secrets management, network security, and backup practices.
+
+Required qualifications:
+- Linux, shell scripting, networking, DNS, HTTP, and troubleshooting fundamentals.
+- Git and CI/CD concepts, including build, test, artifact, and deployment stages.
+- Understanding of cloud infrastructure and IAM/security basics.
+- Basic scripting with Python or Bash and familiarity with logs and monitoring.
+- Containers and deployment fundamentals.
+
+Preferred qualifications:
+- AWS, Azure, or GCP; services such as compute, object storage, IAM, and networking.
+- Docker, Kubernetes, Terraform, or CloudFormation.
+- GitHub Actions, Jenkins, GitLab CI, Prometheus, Grafana, or Datadog.
+- Infrastructure as code, configuration management, incident response, and reliability engineering.`,
+  },
+  {
+    title: "SDET / QA Automation Engineer",
+    jd: `Role: Software Development Engineer in Test (SDET)
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Build automation and test infrastructure that improves software quality and shortens feedback cycles. Work closely with developers and QA partners to validate features, diagnose failures, and prevent regressions.
+
+Key responsibilities:
+- Design, implement, and maintain automated tests for APIs, web applications, and service workflows.
+- Create reusable test utilities, fixtures, test data, and automation frameworks.
+- Validate REST APIs, database behavior, integrations, and end-to-end user journeys.
+- Investigate failures using logs, traces, dashboards, and reproducible test cases; report actionable defects.
+- Integrate automated suites into CI/CD pipelines and improve reliability, coverage, and execution time.
+- Collaborate in design and code reviews to identify testability and quality risks early.
+
+Required qualifications:
+- Programming proficiency in Python, Java, or JavaScript/TypeScript.
+- Software testing fundamentals: test design, boundary cases, regression, and defect lifecycle.
+- API testing, HTTP, REST, JSON, SQL, and database validation.
+- Automated testing with pytest, JUnit, Selenium, Playwright, Cypress, or comparable tools.
+- Git, debugging, CI/CD fundamentals, and clear technical documentation.
+
+Preferred qualifications:
+- AWS or other cloud services, Docker, Kubernetes, and distributed application testing.
+- Performance, load, reliability, or security testing fundamentals.
+- Jira, Kibana, Datadog, Grafana, or log/metrics analysis.
+- Experience building test frameworks, test data pipelines, or failure-triage automation.`,
   },
 ];
 
@@ -79,7 +273,11 @@ export default function App() {
   const splashScale = useRef(new Animated.Value(0.88)).current;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<"login"|"signup">("login");
+  const [toast, setToast] = useState<{message:string; tone:ToastTone}|null>(null);
+  const [loadingMode, setLoadingMode] = useState<"auth"|"scan"|null>(null);
+  const [scanStage, setScanStage] = useState(0);
   const [job, setJob] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [showRoleOptions, setShowRoleOptions] = useState(false);
@@ -90,6 +288,26 @@ export default function App() {
   const [showScanner, setShowScanner] = useState(false);
 
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authFlowInProgress = useRef(false);
+  const showToast = (message: string, tone: ToastTone = "info") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({message, tone});
+    toastTimer.current = setTimeout(() => setToast(null), 3600);
+  };
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (loadingMode !== "scan") {
+      setScanStage(0);
+      return;
+    }
+    const timer = setInterval(() => setScanStage(current => Math.min(current + 1, SCAN_STEPS.length - 1)), 1500);
+    return () => clearInterval(timer);
+  }, [loadingMode]);
 
   useEffect(() => {
     Animated.spring(splashScale, { toValue: 1, speed: 14, bounciness: 5, useNativeDriver: true }).start();
@@ -123,10 +341,20 @@ export default function App() {
     };
 
     const validateSession = async (candidate: User) => {
-      if (checking || !mounted) return;
+      if (checking || !mounted || authFlowInProgress.current || firebaseAuth.currentUser?.uid !== candidate.uid) return;
       checking = true;
       try {
-        const token = await candidate.getIdTokenResult();
+        await reload(candidate);
+        if (!candidate.emailVerified) {
+          clearSessionTimer();
+          if (mounted) {
+            setUser(null);
+            showToast("Please verify your email address before continuing. Check your inbox for the verification link.", "info");
+          }
+          if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
+          return;
+        }
+        const token = await candidate.getIdTokenResult(true);
         const authTime = Number(token.claims.auth_time) * 1000;
         if (!Number.isFinite(authTime) || Date.now() - authTime >= SESSION_MAX_AGE_MS) {
           clearSessionTimer();
@@ -146,7 +374,10 @@ export default function App() {
       } catch {
         // Fail closed if the current session cannot be verified.
         clearSessionTimer();
-        if (mounted) setUser(null);
+        if (mounted) {
+          setUser(null);
+          showToast("We couldn't verify your session. Please sign in again.", "error");
+        }
         if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
       } finally {
         checking = false;
@@ -174,23 +405,54 @@ export default function App() {
   }, []);
 
   const handleEmailAuth = async () => {
-    if (!auth) return Alert.alert("Firebase not configured", "Add your Firebase settings to mobile/.env first.");
-    if (!email.trim()) return Alert.alert("Check your details", "Enter a valid email address.");
+    if (!auth) return showToast("Firebase setup is incomplete. Please try again later.", "error");
+    const normalizedEmail = email.trim();
+    if (!isValidEmail(normalizedEmail)) return showToast("Enter a valid email address, such as name@example.com.", "error");
     if (authMode === "signup" && !PASSWORD_RULE.test(password)) {
-      return Alert.alert("Choose a stronger password", "Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character.");
+      return showToast("Use at least 8 characters with uppercase, lowercase, a number and a special character.", "error");
     }
-    if (authMode === "login" && !password) return Alert.alert("Check your details", "Enter your password.");
+    if (!password) return showToast("Enter your password.", "error");
+
+    authFlowInProgress.current = true;
     setBusy(true);
+    setLoadingMode("auth");
     try {
-      if (authMode === "login") await signInWithEmailAndPassword(auth, email.trim(), password);
-      else await createUserWithEmailAndPassword(auth, email.trim(), password);
-      setPassword("");
-    } catch (e:any) { Alert.alert("Authentication failed", firebaseAuthMessage(e)); }
-    finally { setBusy(false); }
+      if (authMode === "signup") {
+        const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        setUser(null);
+        setPassword("");
+        setAuthMode("login");
+        setShowPassword(false);
+        showToast("Verification link sent. Verify your email before signing in.", "success");
+      } else {
+        const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+        await reload(credential.user);
+        if (!credential.user.emailVerified) {
+          await sendEmailVerification(credential.user);
+          await signOut(auth);
+          setUser(null);
+          setPassword("");
+          showToast("Your email isn't verified yet. We've sent a fresh verification link.", "info");
+          return;
+        }
+        await credential.user.getIdToken(true);
+        setUser(credential.user);
+        setPassword("");
+        showToast("Signed in successfully.", "success");
+      }
+    } catch (e:any) {
+      showToast(firebaseAuthMessage(e), "error");
+    } finally {
+      authFlowInProgress.current = false;
+      setBusy(false);
+      setLoadingMode(null);
+    }
   };
 
   const pickResume = async () => {
-    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
+    if (!user) return showToast("Please sign in before scanning.", "error");
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
@@ -201,15 +463,17 @@ export default function App() {
       setSelectedAsset(asset);
       setFileName(asset.name);
       setReport(null);
-    } catch (e: any) {
-      Alert.alert("Couldn't select resume", e.message || "Please try another file.");
+    } catch {
+      showToast("Couldn't select that file. Please try again.", "error");
     }
   };
 
   const scanResume = async () => {
-    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
-    if (!selectedAsset) return Alert.alert("Choose a resume", "Select a PDF or DOCX before scanning.");
+    if (!user) return showToast("Please sign in before scanning.", "error");
+    if (!selectedAsset) return showToast("Select a PDF or DOCX before scanning.", "error");
     setBusy(true);
+    setLoadingMode("scan");
+    setScanStage(0);
     setReport(null);
     try {
       const result = await analyzeResume(
@@ -222,9 +486,10 @@ export default function App() {
       setReport(result);
       setShowScanner(false);
     } catch (e: any) {
-      Alert.alert("Couldn't analyze resume", e.message || "Please try again.");
+      showToast(e?.message || "Resume analysis couldn't be completed. Please try again.", "error");
     } finally {
       setBusy(false);
+      setLoadingMode(null);
     }
   };
 
@@ -255,8 +520,12 @@ export default function App() {
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
       <Pressable onPress={() => setDarkMode((v) => !v)} style={styles.themeToggle} accessibilityRole="button" accessibilityLabel={darkMode ? "Switch to light mode" : "Switch to dark mode"}><Text style={styles.themeToggleText}>{darkMode ? "☀ Light" : "☾ Dark"}</Text></Pressable>
-      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
+      {user ? <Pressable hitSlop={12} onPress={() => { void signOut(auth!).then(() => { reset(); showToast("Signed out.", "success"); }).catch(() => showToast("Couldn't sign out. Please try again.", "error")); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
+    {toast && <View pointerEvents="none" style={[styles.toast, toast.tone === "error" ? styles.toastError : toast.tone === "success" ? styles.toastSuccess : styles.toastInfo]}>
+      <Text style={styles.toastIcon}>{toast.tone === "error" ? "!" : toast.tone === "success" ? "✓" : "i"}</Text>
+      <Text style={styles.toastText}>{toast.message}</Text>
+    </View>}
 
     <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView
@@ -278,10 +547,17 @@ export default function App() {
           <Text style={styles.bodySmall}>Sign in to access your resume analysis workspace.</Text>
           {!firebaseConfigured && <Text style={styles.warning}>Firebase setup required. Add the values from mobile/.env.example to mobile/.env.</Text>}
           <Label styles={styles}>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor={C.placeholder} style={styles.input}/>
-          <Label styles={styles}>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={styles.input}/>
+          <Label styles={styles}>Password</Label>
+          <View style={styles.passwordRow}>
+            <TextInput value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={[styles.input,styles.passwordInput]}/>
+            <Pressable onPress={() => setShowPassword(value => !value)} style={styles.passwordToggle} accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"}>
+              <Text style={styles.passwordToggleText}>{showPassword ? "Hide" : "Show"}</Text>
+            </Pressable>
+          </View>
           {authMode === "signup" && <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, a number and a special character.</Text>}
           <Button styles={styles} C={C} title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
-          <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
+          {loadingMode === "auth" && <View style={styles.authLoading}><ActivityIndicator size="small" color={C.blue}/><Text style={styles.bodySmall}>Securely checking your account…</Text></View>}
+          <Pressable onPress={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setShowPassword(false); }} style={styles.authSwitch}>
             <Text style={styles.linkCenter}>{authMode === "login" ? "New to CareerLeap? Create an account" : "Already have an account? Sign in"}</Text>
           </Pressable>
         </Card>
@@ -329,7 +605,16 @@ export default function App() {
           <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Or paste a job description here..." placeholderTextColor={C.placeholder} style={[styles.input,styles.textarea]}/>
           <Text style={styles.bodySmall}>You can scan without a job description for a general resume-quality review, or add one for job-specific feedback.</Text>
           <Button styles={styles} C={C} title={busy ? "Scanning..." : "Scan"} onPress={scanResume} disabled={busy || !selectedAsset}/>
-          {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
+          {loadingMode === "scan" && <View style={styles.scanProgress}>
+            <View style={styles.progressHeader}><ActivityIndicator color={C.blue}/><Text style={styles.progressTitle}>Analyzing your resume</Text></View>
+            <View style={styles.progressTrack}><View style={[styles.progressFill,{width:Math.min(90,(scanStage + 1) * 22.5) + "%"}]}/></View>
+            {SCAN_STEPS.map((step,index) => <View key={step} style={styles.scanStep}>
+              <Text style={[styles.scanStepMark,index < scanStage && {color:C.green}]}>{index < scanStage ? "✓" : index === scanStage ? "●" : "○"}</Text>
+              <Text style={[styles.scanStepText,index === scanStage && {color:C.ink,fontWeight:"700"}]}>{step}</Text>
+              <Text style={styles.scanStepStatus}>{index < scanStage ? "Done" : index === scanStage ? "Now" : "Next"}</Text>
+            </View>)}
+            <Text style={styles.progressNote}>These are illustrative stages. Your report appears when the actual analysis finishes.</Text>
+          </View>}
           <View style={styles.privacyRow}><Text style={styles.privacyIcon}>⌑</Text><Text style={styles.privacy}>Your scan isn't saved to history. The resume is processed to generate this report and is not retained by this V1 app.</Text></View>
         </Card>
         <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>A clearer view of your resume</Text><Text style={styles.bodySmall}>Useful feedback, without the guesswork.</Text></View>
@@ -344,16 +629,21 @@ export default function App() {
 }
 
 function Score({value, label, styles, C}: any) {
-  const color = value >= 80 ? C.green : value >= 60 ? C.blue : C.amber;
+  const assessed = typeof value === "number" && Number.isFinite(value);
+  const color = !assessed ? C.muted : value >= 80 ? C.green : value >= 60 ? C.blue : C.amber;
   return <View style={styles.scoreCard}>
-    <View style={[styles.scoreCircle,{borderColor:color}]}><Text style={[styles.scoreNumber,{color}]}>{value}</Text><Text style={styles.scoreOutOf}>/100</Text></View>
+    <View style={[styles.scoreCircle,{borderColor:color}]}><Text style={[styles.scoreNumber,{color}]}>{assessed ? value : "N/A"}</Text>{assessed && <Text style={styles.scoreOutOf}>/100</Text>}</View>
     <Text style={styles.scoreLabel}>{label}</Text>
   </View>;
 }
 function ReportView({report,fileName,onBack,styles,C}: any) {
   const q = report.quality;
   const j = report.job_match;
-  return <View>
+  const entrance = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(entrance, {toValue:1,duration:420,useNativeDriver:true}).start();
+  }, [entrance]);
+  return <Animated.View style={{opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[18,0]})}]}}>
     <View style={styles.reportHeading}>
       <View style={styles.heroAccent}><View style={styles.heroAccentDot}/><Text style={styles.heroAccentText}>ANALYSIS COMPLETE</Text></View>
       <Text style={styles.heroTitle}>Your resume, reviewed.</Text>
@@ -368,44 +658,69 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
       {j.missing_skills?.length > 0 && <><Text style={styles.subhead}>Not detected in your resume</Text><View style={styles.skillWrap}>{j.missing_skills.map((s:string)=><Text key={s} style={styles.missingSkill}>{s}</Text>)}</View></>}
       {j.matched_skills?.length > 0 && <><Text style={styles.subhead}>Evidence detected</Text><View style={styles.skillWrap}>{j.matched_skills.map((s:string)=><Text key={s} style={styles.matchedSkill}>{s}</Text>)}</View></>}
     </Card>}
-    {j?.actionable_suggestions?.length > 0 && <Card styles={styles}>
-      <Text style={styles.cardTitle}>How to improve for this role</Text>
-      <Text style={styles.bodySmall}>Specific edits based on gaps between the job description and your resume. Add a skill only if you can support it with real experience.</Text>
-      {j.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
-        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
-        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+    {q.suggestion_design?.items?.length > 0 ? <Card styles={styles}>
+      <Text style={styles.cardTitle}>Your improvement plan</Text>
+      <Text style={styles.bodySmall}>Prioritized edits designed after the resume and job-match analysis. Start with the highest-impact evidence gaps; optional polish comes last.</Text>
+      {q.suggestion_design.items.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+        <View style={styles.rowBetween}>
+          <Text style={styles.findingTitle}>{item.title}</Text>
+          <Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : item.priority === "low" ? "OPTIONAL" : "REVIEW"}</Text>
+        </View>
+        <Text style={styles.actionLabel}>{String(item.category || "suggestion").replace(/_/g," ").toUpperCase()} · WHY IT MATTERS</Text>
+        <Text style={styles.recommendation}>{item.why_it_matters}</Text>
         <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
-        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>CURRENT RESUME LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
-        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
-        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        {item.source_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>SOURCE · EXTRACTED LINE {item.source_line.line}</Text><Text style={styles.sourceLineText}>{item.source_line.text}</Text></View> : null}
+        {item.related_source_lines?.map((source:any)=><View key={source.line} style={styles.sourceLine}><Text style={styles.sourceLineLabel}>RELATED SOURCE · EXTRACTED LINE {source.line}</Text><Text style={styles.sourceLineText}>{source.text}</Text></View>)}
+        {item.questions_to_answer?.length > 0 ? <>
+          <Text style={styles.actionLabel}>DETAILS TO ADD</Text>
+          {item.questions_to_answer.map((question:string,index:number)=><Text key={index} style={styles.recommendation}>• {question}</Text>)}
+        </> : null}
+        {item.rewrite_template ? <><Text style={styles.actionLabel}>SAFE REWRITE STRUCTURE</Text><Text style={styles.rewriteText}>{item.rewrite_template}</Text></> : null}
+        {item.impact_guidance ? <><Text style={styles.actionLabel}>IMPACT GUIDANCE</Text><Text style={styles.wordingGuide}>{item.impact_guidance}</Text></> : null}
+        <Text style={styles.wordingGuide}>{item.safety_note}</Text>
       </View>)}
-    </Card>}
-    {q.actionable_suggestions?.length > 0 && <Card styles={styles}>
-      <Text style={styles.cardTitle}>Specific resume edits</Text>
-      <Text style={styles.bodySmall}>Each suggestion points to a place in the extracted resume and gives you a safe structure to improve it.</Text>
-      {q.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
-        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "low" ? "OPTIONAL" : item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
-        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
-        <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
-        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
-        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
-        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
-      </View>)}
-    </Card>}
+    </Card> : <>
+      {j?.actionable_suggestions?.length > 0 && <Card styles={styles}>
+        <Text style={styles.cardTitle}>How to improve for this role</Text>
+        <Text style={styles.bodySmall}>Specific edits based on gaps between the job description and your resume. Add a skill only if you can support it with real experience.</Text>
+        {j.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+          <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+          <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+          <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+          {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>CURRENT RESUME LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+          <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+          <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        </View>)}
+      </Card>}
+      {q.actionable_suggestions?.length > 0 && <Card styles={styles}>
+        <Text style={styles.cardTitle}>Specific resume edits</Text>
+        <Text style={styles.bodySmall}>Each suggestion points to a place in the extracted resume and gives you a safe structure to improve it.</Text>
+        {q.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+          <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "low" ? styles.priorityMedium : item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "low" ? "OPTIONAL" : item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+          <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+          <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+          {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+          <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+          {item.suggested_rewrite ? <><Text style={styles.actionLabel}>SUGGESTED REWRITE</Text><Text style={styles.rewriteText}>{item.suggested_rewrite}</Text></> : null}
+          <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        </View>)}
+      </Card>}
+    </>}
     <Card styles={styles}><Text style={styles.cardTitle}>Areas to strengthen</Text>
       {q.findings.length === 0 && <Text style={styles.bodySmall}>No major deductions were identified by this rubric.</Text>}
       {q.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}
     </Card>
     {j?.findings?.length > 0 && <Card styles={styles}><Text style={styles.cardTitle}>Job match recommendations</Text>{j.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}</Card>}
     <Card styles={styles}><Text style={styles.cardTitle}>Recommended next steps</Text>{q.top_suggestions.map((s:string,i:number)=><View key={i} style={styles.suggestion}><Text style={styles.suggestionNum}>{i+1}</Text><Text style={styles.suggestionText}>{s}</Text></View>)}</Card>
-    <Text style={styles.privacy}>This score is an explainable estimate based on our V1 rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
+    <Text style={styles.privacy}>This score is an explainable estimate from CareerLeap's deterministic rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
     <Button styles={styles} C={C} title="Analyze another resume" onPress={onBack}/>
-  </View>;
+  </Animated.View>;
 }
 function Breakdown({item, styles}: any) {
-  const pct = item.possible ? item.earned/item.possible : 0;
+  const assessed = typeof item.earned === "number" && Number.isFinite(item.earned);
+  const pct = item.possible && assessed ? item.earned/item.possible : 0;
   return <View style={styles.breakdown}>
-    <View style={styles.rowBetween}><Text style={styles.breakLabel}>{item.label}</Text><Text style={styles.breakValue}>{item.earned}/{item.possible}</Text></View>
+    <View style={styles.rowBetween}><Text style={styles.breakLabel}>{item.label}</Text><Text style={styles.breakValue}>{assessed ? `${item.earned}/${item.possible}` : "Not assessed"}</Text></View>
     <View style={styles.barBg}><View style={[styles.barFill,{width:`${pct*100}%`} as any]}/></View>
     {item.deducted > 0 && <Text style={styles.deduction}>−{item.deducted} points</Text>}
   </View>;
@@ -453,6 +768,26 @@ function createStyles(C: any) { return StyleSheet.create({
   authSwitch:{paddingVertical:13},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
   warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:C.warningSoft,padding:10,borderRadius:9},
   passwordHint:{fontSize:10,lineHeight:16,color:C.muted,marginTop:7},
+  passwordRow:{flexDirection:"row",alignItems:"center",position:"relative"},
+  passwordInput:{flex:1,paddingRight:66},
+  passwordToggle:{position:"absolute",right:12,paddingHorizontal:5,paddingVertical:9},
+  passwordToggleText:{fontSize:12,fontWeight:"800",color:C.blue},
+  toast:{position:"absolute",top:78,left:18,right:18,zIndex:1000,elevation:12,borderRadius:14,paddingHorizontal:14,paddingVertical:13,flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.line,backgroundColor:C.white},
+  toastError:{borderLeftWidth:4,borderLeftColor:C.red},toastSuccess:{borderLeftWidth:4,borderLeftColor:C.green},toastInfo:{borderLeftWidth:4,borderLeftColor:C.blue},
+  toastIcon:{fontSize:14,fontWeight:"900",color:C.blue,width:18,textAlign:"center"},
+  toastText:{flex:1,fontSize:12,lineHeight:18,color:C.ink,fontWeight:"600"},
+  authLoading:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,marginTop:12},
+  scanProgress:{marginTop:16,padding:14,borderRadius:14,backgroundColor:C.panel,borderWidth:1,borderColor:C.line},
+  progressHeader:{flexDirection:"row",alignItems:"center",gap:9},
+  progressTitle:{fontSize:13,fontWeight:"800",color:C.ink},
+  progressTrack:{height:7,backgroundColor:C.track,borderRadius:8,overflow:"hidden",marginTop:14,marginBottom:8},
+  progressFill:{height:7,backgroundColor:C.blue,borderRadius:8},
+  scanStep:{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7},
+  scanStepMark:{width:15,fontSize:12,color:C.muted,fontWeight:"900"},
+  scanStepText:{flex:1,fontSize:11,color:C.muted},
+  scanStepStatus:{fontSize:9,color:C.muted,fontWeight:"700"},
+  progressNote:{fontSize:9,lineHeight:14,color:C.muted,marginTop:7},
+  rewriteText:{fontSize:12,lineHeight:19,color:C.ink,backgroundColor:C.blueSoft,padding:11,borderRadius:9,marginTop:4},
   rowBetween:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   newTag:{backgroundColor:C.blueSoft,color:C.blue,fontWeight:"800",fontSize:9,letterSpacing:1,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden"},
   uploadBox:{backgroundColor:C.panel,borderWidth:1,borderColor:"#D9E2F4",borderStyle:"dashed",borderRadius:16,padding:21,alignItems:"center",marginTop:19,marginBottom:9},

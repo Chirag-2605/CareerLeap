@@ -15,10 +15,10 @@ SCHEMA_VERSION = "resume-v2"
 
 # Keep these aliases conservative: a heading must match as a complete line.
 SECTION_ALIASES = {
-    "summary": ("summary", "professional summary", "profile", "objective", "career objective", "about me"),
+    "summary": ("summary", "professional summary", "profile", "professional profile", "career profile", "objective", "career objective", "about me"),
     "experience": ("experience", "work experience", "professional experience", "employment history", "employment", "internship"),
     "education": ("education", "academic background", "qualifications", "academic qualifications"),
-    "skills": ("skills", "technical skills", "technical highlights", "core competencies", "competencies", "areas of expertise"),
+    "skills": ("skills", "my skills", "technical skills", "key skills", "skill set", "technical highlights", "core competencies", "competencies", "areas of expertise"),
     "projects": ("projects", "personal projects", "academic projects", "selected projects"),
     "certifications": ("certifications", "certificates", "licenses", "licences"),
     "awards": ("awards", "honors", "honours", "achievements"),
@@ -26,6 +26,7 @@ SECTION_ALIASES = {
     "languages": ("languages", "language proficiency"),
     "publications": ("publications", "research publications"),
     "volunteer": ("volunteer experience", "volunteering", "community involvement"),
+    "coding_platforms": ("coding platforms", "competitive programming", "problem solving profiles"),
 }
 
 # Canonical skill names are emitted once; aliases never create duplicate skills.
@@ -77,6 +78,25 @@ SKILL_GROUPS = {
     "ruby": ("ruby",),
     "php": ("php",),
     "swift": ("swift",),
+    "selenium": ("selenium",),
+    "playwright": ("playwright",),
+    "cypress": ("cypress",),
+    "pytest": ("pytest",),
+    "junit": ("junit",),
+    "jest": ("jest",),
+    "jenkins": ("jenkins",),
+    "github actions": ("github actions",),
+    "prometheus": ("prometheus",),
+    "grafana": ("grafana",),
+    "datadog": ("datadog",),
+    "websockets": ("websocket", "websockets"),
+    "webrtc": ("webrtc",),
+    "socket.io": ("socket.io", "socket io"),
+    "jwt": ("jwt", "json web token"),
+    "oauth": ("oauth", "oauth 2.0"),
+    "bash": ("bash",),
+    "statistics": ("statistics",),
+    "ci/cd": ("ci/cd", "continuous integration", "continuous delivery", "continuous deployment"),
     "athena": ("athena",),
     "iam": ("iam",),
     "s3": ("s3",),
