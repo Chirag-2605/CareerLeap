@@ -25,7 +25,7 @@ SECTION_ALIASES = {
     "leadership": ("positions of responsibility", "leadership", "leadership experience", "extracurricular activities", "student activities"),
     "languages": ("languages", "language proficiency"),
     "publications": ("publications", "research publications"),
-    "volunteer": ("volunteer experience", "volunteering", "community involvement"),
+    "volunteer": ("volunteer experience", "volunteering", "community involvement"),\n    "coding_platforms": ("coding platforms", "competitive programming", "problem solving profiles"),
 }
 
 # Canonical skill names are emitted once; aliases never create duplicate skills.
