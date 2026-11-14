@@ -32,7 +32,7 @@ ACTION_STARTS = {
     "automated", "delivered", "launched", "integrated", "migrated", "deployed",
     "engineered", "configured", "resolved", "fixed", "analyzed", "improved",
 }
-GENERIC_PHRASES = (
+TECHNICAL_DETAIL_RE = re.compile(\n    r"\\b(?:api|apis|websocket|websockets|socket\\.io|webrtc|jwt|oauth|authentication|authorization|"\n    r"database|schema|microservice|real[- ]time|peer[- ]to[- ]peer|message history|integration|"\n    r"deployment|deployed|pipeline|cache|query|endpoint|framework|architecture|model|workflow)\\b",\n    re.I,\n)\nGENERIC_PHRASES = (
     "different projects", "many new technologies", "whenever required",
     "some frontend and backend work", "helped seniors", "useful for managing things",
     "created a website", "added some features", "made the design look good",
