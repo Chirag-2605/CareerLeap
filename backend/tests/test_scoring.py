@@ -204,3 +204,28 @@ B.Tech Computer Science, Example University, 2026
     role = next(item for item in result["breakdown"] if item["key"] == "role_alignment")
     assert role["earned"] == role["possible"] == 15
     assert result["role_alignment"]["assessment"] == "aligned"
+
+
+
+def test_suggested_rewrite_rephrases_vague_bullet_without_inventing_facts():
+    from app.scoring import _suggested_rewrite
+
+    rewritten = _suggested_rewrite("• Worked on frontend development.")
+    assert rewritten.startswith("Contributed to frontend development")
+    assert "[describe the specific action you took]" in rewritten
+    assert "[verified outcome]" in rewritten
+    assert "20%" not in rewritten
+
+
+def test_quality_actionable_suggestions_include_sentence_rewrites():
+    result = analyze_quality(
+        "Alex Doe\nSkills\nReact\nExperience\n"
+        "• Worked on frontend development.\nEducation\nBachelor of Technology"
+    )
+    rewrites = [
+        item["suggested_rewrite"]
+        for item in result["actionable_suggestions"]
+        if item.get("code", "").startswith("rewrite_bullet_line_")
+    ]
+    assert rewrites
+    assert all(isinstance(value, str) and value.endswith(".") for value in rewrites)
