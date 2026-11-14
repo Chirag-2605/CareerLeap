@@ -43,7 +43,7 @@ def test_suggestions_include_source_lines_questions_and_safe_rewrite_templates()
     result = design_suggestions(WEAK_SAMPLE, {"findings": [{"code": "few_metrics"}]})
     experience = next(item for item in result["items"] if item["category"] == "experience_evidence")
 
-    assert experience["source_line"]["line"] == 14
+    assert experience["source_line"]["line"] == 12
     assert experience["questions_to_answer"]
     assert "[technology or method]" in experience["rewrite_template"]
     assert "[verified outcome or scope]" in experience["rewrite_template"]
