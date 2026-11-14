@@ -228,7 +228,14 @@ export default function App() {
       {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
 
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+      automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+      showsVerticalScrollIndicator={false}
+    >
       {!user ? <View>
         <View style={styles.hero}>
           <View style={styles.heroAccent}><View style={styles.heroAccentDot}/><Text style={styles.heroAccentText}>CAREER CLARITY STARTS HERE</Text></View>
@@ -302,6 +309,7 @@ export default function App() {
       </View>}
       <Text style={styles.footer}>CAREERLEAP  ·  BUILT FOR YOUR NEXT STEP</Text>
     </ScrollView>
+    </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 
@@ -382,6 +390,7 @@ function Finding({finding, styles, C}: any) {
 }
 
 function createStyles(C: any) { return StyleSheet.create({
+  keyboardArea:{flex:1},
   themeToggle:{paddingHorizontal:11,paddingVertical:8,borderRadius:18,backgroundColor:C.blueSoft},
   themeToggleText:{fontSize:11,fontWeight:"800",color:C.blue},
   safe:{flex:1,backgroundColor:C.soft}, center:{flex:1,alignItems:"center",justifyContent:"center"},
@@ -397,7 +406,7 @@ function createStyles(C: any) { return StyleSheet.create({
   heroTitle:{fontSize:32,lineHeight:38,fontWeight:"800",letterSpacing:-1.05,color:C.ink,marginBottom:10},
   body:{fontSize:14,lineHeight:22,color:C.muted},bodySmall:{fontSize:12,lineHeight:18,color:C.muted,marginTop:5},
   heroPills:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:17},
-  pill:{fontSize:10,color:"#344B7A",backgroundColor:C.blueSoft,paddingHorizontal:10,paddingVertical:7,borderRadius:20,fontWeight:"700"},
+  pill:{fontSize:10,color:C.tagText,backgroundColor:C.blueSoft,paddingHorizontal:10,paddingVertical:7,borderRadius:20,fontWeight:"700"},
   card:{backgroundColor:C.white,borderRadius:20,padding:19,marginBottom:16,borderWidth:1,borderColor:C.line,elevation:2,shadowColor:"#172B4D",shadowOpacity:.045,shadowRadius:12,shadowOffset:{width:0,height:4}},
   cardTitle:{fontSize:18,fontWeight:"800",color:C.ink,letterSpacing:-.35},
   button:{backgroundColor:C.navy,paddingVertical:15,paddingHorizontal:18,borderRadius:13,alignItems:"center",marginTop:15,elevation:2,shadowColor:C.navy,shadowOpacity:.13,shadowRadius:5,shadowOffset:{width:0,height:3}},
@@ -406,7 +415,7 @@ function createStyles(C: any) { return StyleSheet.create({
   muted:{fontSize:10,color:C.muted},label:{fontSize:12,fontWeight:"700",color:C.ink,marginTop:15,marginBottom:8},
   input:{borderWidth:1,borderColor:C.line,borderRadius:12,paddingHorizontal:14,paddingVertical:13,fontSize:14,color:C.ink,backgroundColor:C.input},
   authSwitch:{paddingVertical:13},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
-  warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:"#FFF8EB",padding:10,borderRadius:9},
+  warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:C.warningSoft,padding:10,borderRadius:9},
   passwordHint:{fontSize:10,lineHeight:16,color:C.muted,marginTop:7},
   rowBetween:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   newTag:{backgroundColor:C.blueSoft,color:C.blue,fontWeight:"800",fontSize:9,letterSpacing:1,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden"},
@@ -424,7 +433,7 @@ function createStyles(C: any) { return StyleSheet.create({
   roleOption:{minHeight:44,paddingHorizontal:14,paddingVertical:12,borderBottomWidth:1,borderBottomColor:C.line,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},
   roleOptionText:{fontSize:13,color:C.ink,fontWeight:"600"},roleSelected:{fontSize:8,color:C.blue,fontWeight:"900",letterSpacing:.7},
   templateHint:{fontSize:10,color:C.blue,marginTop:8,lineHeight:15},
-  textarea:{height:116,paddingTop:13,textAlignVertical:"top"},
+  textarea:{height:116,paddingTop:13,textAlignVertical:"top",marginTop:12},
   privacyRow:{flexDirection:"row",alignItems:"flex-start",gap:8,marginTop:13},
   privacyIcon:{fontSize:17,color:C.green,fontWeight:"800",marginTop:-2},
   privacy:{flex:1,fontSize:10,lineHeight:16,color:C.muted,marginTop:12},
@@ -448,11 +457,11 @@ function createStyles(C: any) { return StyleSheet.create({
   sourceLineText:{fontSize:11,lineHeight:17,color:C.ink},
   wordingGuide:{fontSize:11,lineHeight:18,color:C.ink,backgroundColor:C.blueSoft,padding:11,borderRadius:9,marginTop:4},
   priorityTag:{fontSize:8,fontWeight:"900",letterSpacing:.6,paddingHorizontal:7,paddingVertical:5,borderRadius:8,overflow:"hidden"},
-  priorityHigh:{color:"#B42318",backgroundColor:"#FEF3F2"},priorityMedium:{color:"#8A6100",backgroundColor:"#FFF8E7"},
+  priorityHigh:{color:C.dangerTagText,backgroundColor:C.dangerTagBg},priorityMedium:{color:C.warningTagText,backgroundColor:C.warningTagBg},
   recommendation:{fontSize:12,lineHeight:19,color:C.body,marginTop:8},subhead:{fontSize:12,fontWeight:"800",color:C.ink,marginTop:17,marginBottom:9},
   skillWrap:{flexDirection:"row",flexWrap:"wrap",gap:7},
-  missingSkill:{fontSize:10,color:"#B42318",backgroundColor:"#FEF3F2",paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden",fontWeight:"600"},
-  matchedSkill:{fontSize:10,color:"#067647",backgroundColor:"#ECFDF3",paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden",fontWeight:"600"},
+  missingSkill:{fontSize:10,color:C.dangerTagText,backgroundColor:C.dangerTagBg,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden",fontWeight:"600"},
+  matchedSkill:{fontSize:10,color:C.successTagText,backgroundColor:C.successTagBg,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden",fontWeight:"600"},
   suggestion:{flexDirection:"row",gap:11,marginTop:15,alignItems:"flex-start"},
   suggestionNum:{width:24,height:24,textAlign:"center",textAlignVertical:"center",borderRadius:12,overflow:"hidden",backgroundColor:C.blueSoft,color:C.blue,fontWeight:"900",fontSize:11},
   suggestionText:{flex:1,fontSize:12,lineHeight:19,color:C.body},
