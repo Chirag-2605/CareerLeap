@@ -4,6 +4,12 @@ import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .parser_v2 import SKILL_GROUPS
+from .services.evidence_service import collect_evidence
+from .services.skill_matching_service import match_requirement
+from .services.responsibility_matching_service import match_responsibilities
+from .services.experience_evaluator_service import evaluate_experience_depth
+from .services.project_evaluator_service import evaluate_projects
+from .services.scoring_orchestrator import aggregate_dimensions
 
 QUALITY_VERSION = "quality-v4"
 MATCH_VERSION = "match-v4"
@@ -200,30 +206,27 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
         ))
     components.append(_component("evidence_quality", evidence_score, findings))
 
-    # Experience depth: actual experience bullets, role context and breadth.
+    # Experience depth is evaluated independently from evidence quality and
+    # project evidence. Bullet quantity alone cannot produce a full score.
     role_context_items = [
         item for item in sections.get("experience", [])
         if item.get("kind") != "bullet" and _item_text(item)
     ]
-    depth_score = min(12, len(experience) * 3)
-    if experience and role_context_items:
-        depth_score += 4
-    if len(experience) >= 3:
-        depth_score += 2
-    if project_bullets:
-        depth_score += min(2, len(project_bullets))
-    depth_score = min(20, depth_score)
+    depth_assessment = evaluate_experience_depth(
+        experience, role_context_items, project_bullets, quality_values[:len(experience)]
+    )
+    depth_score = depth_assessment["score"]
     if not experience:
         findings.append(_finding(
             "experience_depth_no_work_bullets",
             "No work-experience achievement bullets were identified", "medium",
             "If you have employment or internship experience, include your role, organization, dates and contributions.",
         ))
-    elif len(experience) < 2:
+    elif depth_assessment["average_quality"] < 2.5:
         findings.append(_finding(
-            "experience_depth_limited",
-            "Limited work-experience detail was extracted", "medium",
-            "Add another specific contribution where it reflects your actual work.",
+            "experience_depth_limited_substance",
+            "Experience entries lack enough technical detail to establish depth", "medium",
+            "Describe the specific engineering work, decisions, tools and scope you personally handled.",
             [eid for item in experience for eid in item["evidence_ids"]],
         ))
     components.append(_component("experience_depth", depth_score, findings))
@@ -369,6 +372,8 @@ def analyze_quality_v4(resume: Dict[str, Any]) -> Dict[str, Any]:
                 ))[:20],
             }
         ] if demonstrated else [],
+        "project_assessment": evaluate_projects(project_bullets),
+        "experience_assessment": depth_assessment,
         "evidence_summary": {
             "achievement_bullets": len(all_bullets),
             "experience_bullets": len(experience),
@@ -663,41 +668,12 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     skill_matches = []
     skill_gaps = []
     aliases_by_name = _skill_aliases()
+    evidence_corpus = collect_evidence(
+        resume, sections=("experience", "projects", "leadership", "volunteer", "skills")
+    )
     for requirement in required + preferred:
-        names = requirement.get("alternatives") or [requirement["name"]]
-        alternative_results = []
-        for name in names:
-            evidence = skills.get(name, {})
-            direct = [item for item in resume_bullets
-                      if any(_has(item["text"], alias) for alias in aliases_by_name.get(name, (name,)))]
-            demonstrated_ids = list(dict.fromkeys(
-                eid for item in direct for eid in item["evidence_ids"]
-            ))
-            listed_ids = evidence.get("listed", [])
-            status = "demonstrated" if demonstrated_ids else "listed" if listed_ids else "not_found"
-            alternative_results.append({
-                "name": name, "status": status,
-                "evidence_ids": demonstrated_ids or listed_ids or evidence.get("all", []),
-            })
-        matched = [item for item in alternative_results if item["status"] != "not_found"]
-        status = (
-            "demonstrated" if any(item["status"] == "demonstrated" for item in matched)
-            else "listed" if matched else "not_found"
-        )
-        detail = {
-            "skill": requirement["name"],
-            "classification": requirement["classification"],
-            "status": status,
-            "resume_evidence_ids": list(dict.fromkeys(
-                eid for item in matched for eid in item["evidence_ids"]
-            )),
-            "job_description_excerpt": requirement["source_sentence"],
-        }
-        if requirement.get("alternatives"):
-            detail["alternatives"] = list(names)
-            detail["matched_alternatives"] = [item["name"] for item in matched]
-            detail["match_rule"] = "any"
-        if status == "not_found":
+        detail = match_requirement(requirement, skills, evidence_corpus, aliases_by_name)
+        if detail["status"] == "not_found":
             skill_gaps.append(detail)
         else:
             skill_matches.append(detail)
@@ -727,32 +703,9 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     responsibility_lines = list(dict.fromkeys(
         line for line in responsibility_lines if len(_tokens(line)) >= 4
     ))
-    responsibility_matches = []
-    for line in responsibility_lines:
-        ranked = sorted(
-            ((_responsibility_similarity(line, bullet["text"]), bullet) for bullet in resume_bullets),
-            key=lambda pair: pair[0], reverse=True,
-        )
-        relevant = [(value, bullet) for value, bullet in ranked if value >= 0.14][:2]
-        if relevant:
-            best_value, best_bullet = relevant[0]
-            responsibility_matches.append({
-                "job_responsibility": line,
-                "resume_excerpt": best_bullet["text"],
-                "similarity": round(best_value, 3),
-                "evidence_ids": list(dict.fromkeys(
-                    eid for _, bullet in relevant for eid in bullet["evidence_ids"]
-                )),
-                "evidence_type": "direct" if len((_tokens(line) & _tokens(best_bullet["text"])) - RESPONSIBILITY_STOP_WORDS) >= 2 else "supporting",
-                "supporting_excerpts": [bullet["text"] for _, bullet in relevant[1:]],
-            })
-    responsibility_score = None
-    if responsibility_lines:
-        matched_by_line = {item["job_responsibility"]: item["similarity"] for item in responsibility_matches}
-        responsibility_score = int(round(25 * sum(
-            min(1.0, matched_by_line.get(line, 0.0) / 0.45)
-            for line in responsibility_lines
-        ) / len(responsibility_lines)))
+    responsibility_matches, responsibility_score = match_responsibilities(
+        responsibility_lines, resume_bullets
+    )
 
     # Candidate role comes from actual experience role-title lines, not all bullet text.
     title_text = " ".join(
@@ -789,34 +742,21 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     if assessed_role_signals:
         role_level_score = int(round(10 * sum(assessed_role_signals) / len(assessed_role_signals)))
 
-    # Normalize only over dimensions with sufficient source information. Unassessed
-    # dimensions do not earn free points and do not count as zero.
-    dimensions = [
+    # Aggregate independently assessed dimensions. Unassessed dimensions
+    # neither earn free points nor count as zero.
+    minimum_assessed_weight = 25
+    aggregate = aggregate_dimensions([
         ("required_skills", required_score, 40),
         ("preferred_skills", preferred_score, 15),
         ("responsibility_alignment", responsibility_score, 25),
         ("role_seniority", role_level_score, 10),
-    ]
-    active_weight = sum(weight for _, value, weight in dimensions if value is not None)
-    earned = sum(value for _, value, _ in dimensions if value is not None)
-    provisional_score = int(round(100.0 * earned / active_weight)) if active_weight else None
-    # A role-title/seniority signal alone is too thin to publish as a match
-    # score. Require at least 25 of 90 weighted points to be assessed.
-    minimum_assessed_weight = 25
-    score_is_assessable = active_weight >= minimum_assessed_weight
-    score = provisional_score if score_is_assessable else None
-    score_status = "assessed" if score_is_assessable else "insufficient_data"
-    breakdown = []
-    for key, value, weight in dimensions:
-        assessed = value is not None
-        breakdown.append({
-            "key": key, "label": key.replace("_", " ").title(),
-            "earned": value if assessed else None,
-            "possible": weight if assessed else 0,
-            "weight": weight,
-            "deducted": weight - value if assessed else None,
-            "assessed": assessed,
-        })
+    ], minimum_assessed_weight)
+    active_weight = aggregate["active_weight"]
+    score = aggregate["score"]
+    score_status = aggregate["score_status"]
+    provisional_score = aggregate["provisional_score"]
+    score_is_assessable = score_status == "assessed"
+    breakdown = aggregate["breakdown"]
 
     findings = []
     if not score_is_assessable:
@@ -883,6 +823,22 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
             "responsibility_matches": len(responsibility_matches),
         },
         "breakdown": breakdown,
+        "dimension_assessments": {
+            "skill_matching": {
+                "required": required_score, "preferred": preferred_score,
+                "matched": len(skill_matches), "gaps": len(skill_gaps),
+            },
+            "responsibility_matching": {
+                "score": responsibility_score,
+                "statements": len(responsibility_lines),
+                "matches": len(responsibility_matches),
+            },
+            "role_seniority": {
+                "score": role_level_score,
+                "role": role_assessment,
+                "seniority": seniority_assessment,
+            },
+        },
         "requirements": jd_skills,
         "matched_required_skills": sorted(item["skill"] for item in skill_matches if item["classification"] == "required"),
         "missing_required_skills": sorted(missing_required),
