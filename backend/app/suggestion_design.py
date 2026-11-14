@@ -167,8 +167,15 @@ def design_suggestions(
     achievement_lines = [item for item in lines if item["section"] in {"experience", "projects", "leadership", "volunteer"}
                          and BULLET_RE.match(item["text"])]
     weak = [item for item in achievement_lines if _weak_bullet(item)]
+    # Reserve space for project and skills evidence; otherwise a long list of
+    # weak internship bullets can crowd every other useful recommendation out.
+    selected_weak = (
+        [item for item in weak if item["section"] == "experience"][:3]
+        + [item for item in weak if item["section"] == "projects"][:2]
+        + [item for item in weak if item["section"] in {"leadership", "volunteer"}][:1]
+    )
 
-    for item in weak[:5]:
+    for item in selected_weak:
         section = item["section"]
         label = "project" if section == "projects" else "experience"
         items.append(_suggestion(
