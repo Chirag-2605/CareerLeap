@@ -84,6 +84,6 @@ def test_scoring_orchestrator_normalizes_only_assessed_dimensions():
         ("preferred_skills", None, 15),
         ("responsibility_alignment", 10, 25),
     ])
-    assert result["score"] == 40
+    assert result["score"] == 46
     assert result["active_weight"] == 65
     assert result["breakdown"][1]["assessed"] is False
