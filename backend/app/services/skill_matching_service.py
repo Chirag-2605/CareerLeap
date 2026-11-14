@@ -10,7 +10,7 @@ from typing import Any, Dict, Iterable, List
 SEMANTIC_EVIDENCE = {
     "api development": {
         "direct": ("api development", "api design", "api implementation", "developed api", "built api", "api endpoints"),
-        "supporting": ("rest api", "restful api", "restful services", "http endpoint"),
+        "supporting": ("rest api", "rest apis", "restful api", "restful apis", "restful services", "http endpoint"),
     },
     "http": {
         "direct": ("http", "http protocol", "http methods", "https"),
