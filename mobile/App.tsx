@@ -56,27 +56,201 @@ const SCAN_STEPS = [
 const ROLE_TEMPLATES = [
   {
     title: "Software Engineer",
-    jd: `We are looking for a Software Engineer to design, develop, test, and maintain reliable software applications. You will collaborate with product managers, designers, and engineers to understand requirements and deliver maintainable solutions. Responsibilities include writing clean and efficient code, designing APIs and data models, debugging issues, reviewing code, improving application performance, and contributing to technical discussions. You should have a strong foundation in data structures, algorithms, object-oriented programming, and software engineering principles. Experience with one or more programming languages, databases, version control, testing, and building or integrating APIs is valuable. We value problem-solving ability, clear communication, ownership, and a willingness to learn.`,
+    jd: `Role: Entry-Level Software Engineer
+Level: Graduate / 0–2 years
+
+Role overview:
+Build, test, and maintain reliable software products and backend services. Work with engineers and product partners to turn requirements into secure, maintainable implementations.
+
+Key responsibilities:
+- Design and implement application features, APIs, data models, and reusable components.
+- Solve programming problems involving data structures, algorithms, object-oriented design, and core computer science concepts.
+- Debug defects, investigate production issues, write unit and integration tests, and improve code quality.
+- Review code, document technical decisions, and participate in design discussions.
+- Work with relational or NoSQL databases, version control, and CI/CD workflows.
+
+Required qualifications:
+- Strong programming proficiency in at least one of Java, Python, C++, JavaScript, or TypeScript.
+- Data structures and algorithms, object-oriented programming, and problem-solving fundamentals.
+- SQL and relational database concepts such as joins, indexes, and transactions.
+- REST API fundamentals, Git-based version control, debugging, and unit testing.
+- Understanding of operating systems, networking, and software development lifecycle.
+
+Preferred qualifications:
+- Experience with Spring Boot, Node.js, React, or another production framework.
+- Exposure to PostgreSQL, MySQL, MongoDB, Redis, or cloud platforms such as AWS.
+- Familiarity with Docker, CI/CD, distributed systems, or automated integration testing.
+- Internship, open-source, or personal project experience demonstrating shipped software.`,
   },
   {
     title: "Frontend Engineer",
-    jd: `We are looking for a Frontend Engineer to build responsive, accessible, and user-friendly web applications. You will translate product and design requirements into reusable UI components, integrate frontend applications with backend APIs, and improve performance and usability. Responsibilities include developing and maintaining interfaces, managing application state, handling browser compatibility, writing maintainable code and tests, debugging production issues, and collaborating with design and backend teams. Strong JavaScript and HTML/CSS fundamentals are expected. Experience with React or another modern frontend framework, TypeScript, responsive design, REST APIs, Git, and frontend testing is useful. We value attention to detail, problem-solving, and a focus on user experience.`,
+    jd: `Role: Frontend Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Build fast, accessible, responsive web interfaces and turn product designs into dependable user experiences. Partner with design, product, and backend teams throughout feature delivery.
+
+Key responsibilities:
+- Develop reusable UI components, page layouts, and interactive workflows.
+- Translate product requirements and design specifications into responsive interfaces.
+- Integrate REST APIs, handle asynchronous states and errors, and manage client-side application state.
+- Improve rendering performance, accessibility, browser compatibility, and frontend reliability.
+- Write component and end-to-end tests, debug UI defects, and participate in code reviews.
+
+Required qualifications:
+- JavaScript (ES6+) and TypeScript fundamentals.
+- React, component architecture, hooks, and state management.
+- HTML5, CSS3, responsive design, and accessibility fundamentals.
+- REST APIs, JSON, asynchronous programming, Git, and browser debugging.
+- Understanding of frontend testing and basic web performance concepts.
+
+Preferred qualifications:
+- Next.js, React Query, Redux, Zustand, or comparable state/data libraries.
+- Jest, React Testing Library, Playwright, or Cypress.
+- Experience with design systems, Storybook, WebSockets, or real-time interfaces.
+- Familiarity with performance profiling, semantic HTML, and WCAG accessibility practices.`,
   },
   {
     title: "Backend Engineer",
-    jd: `We are looking for a Backend Engineer to design, build, and maintain scalable and reliable services. You will develop APIs and backend components, work with databases and data models, integrate external systems, and help ensure application security, performance, and reliability. Responsibilities include writing maintainable code, debugging and resolving service issues, designing efficient queries, implementing tests, participating in code reviews, and contributing to system design discussions. Strong programming, data structures, algorithms, and database fundamentals are expected. Experience with Java, Kotlin, Python, Node.js, or similar languages; REST APIs; SQL or NoSQL databases; distributed systems; and cloud platforms is valuable. We value ownership, sound engineering judgment, and collaboration.`,
+    jd: `Role: Backend Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Design and operate secure, observable backend services that power customer-facing applications. Build APIs and data workflows with attention to correctness, performance, and maintainability.
+
+Key responsibilities:
+- Design, implement, document, and maintain REST APIs and service-side business logic.
+- Model relational and NoSQL data, write efficient queries, and reason about indexes and transactions.
+- Implement authentication, authorization, input validation, and secure service integrations.
+- Diagnose bugs and performance bottlenecks; add logs, metrics, tests, and operational safeguards.
+- Participate in code reviews, system design discussions, and deployment/release workflows.
+
+Required qualifications:
+- Proficiency in at least one of Java, Kotlin, Python, or Node.js.
+- Data structures, algorithms, object-oriented programming, and API design fundamentals.
+- SQL, relational database design, joins, indexes, and transaction concepts.
+- REST APIs, HTTP, JSON, Git, and unit/integration testing.
+- Understanding of authentication, error handling, concurrency, and debugging.
+
+Preferred qualifications:
+- Spring Boot, Express.js, FastAPI, or another backend framework.
+- PostgreSQL, MySQL, MongoDB, Redis, caching, or message queues.
+- AWS, Docker, Kubernetes, CI/CD, observability, or infrastructure as code.
+- Exposure to distributed systems, database optimization, and service reliability.`,
   },
   {
     title: "Full Stack Developer",
-    jd: `We are looking for a Full Stack Developer to build and maintain end-to-end web applications. You will develop responsive frontend experiences, implement backend services and APIs, integrate databases, and collaborate with cross-functional teams to deliver product features. Responsibilities include translating requirements into technical solutions, building reusable UI components, designing data models, writing tests, debugging issues, reviewing code, and improving application performance. Strong programming fundamentals and experience with JavaScript or TypeScript are expected. Experience with React or a similar frontend framework, backend technologies such as Node.js, Java, or Python, REST APIs, databases, Git, and cloud services is useful. We value adaptability, communication, and an end-to-end approach to problem-solving.`,
+    jd: `Role: Full Stack Developer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Deliver complete product features across frontend, backend, and data layers. Work from user requirements through implementation, testing, and deployment.
+
+Key responsibilities:
+- Build responsive interfaces and reusable components using a modern frontend framework.
+- Implement backend endpoints, business logic, validation, and authentication flows.
+- Design database schemas and integrate relational or NoSQL storage.
+- Connect frontend experiences to APIs and handle loading, empty, success, and error states.
+- Test features, debug issues across the stack, review code, and support deployments.
+
+Required qualifications:
+- JavaScript or TypeScript, React, HTML, CSS, and responsive UI development.
+- Backend development using Node.js, Java, Python, or a comparable language.
+- REST API design and integration, HTTP, JSON, and asynchronous programming.
+- SQL and database fundamentals; familiarity with at least one relational or NoSQL database.
+- Git, debugging, testing, data structures, and object-oriented programming fundamentals.
+
+Preferred qualifications:
+- Express.js, Next.js, Spring Boot, or similar frameworks.
+- PostgreSQL, MySQL, MongoDB, Redis, or cloud-hosted databases.
+- JWT, OAuth, role-based access control, WebSockets, or third-party integrations.
+- Docker, AWS, CI/CD, automated testing, and end-to-end deployment experience.`,
   },
   {
     title: "Machine Learning Engineer",
-    jd: `We are looking for a Machine Learning Engineer to develop, evaluate, and deploy data-driven solutions. You will work with engineers, data scientists, and product teams to translate business problems into measurable machine learning tasks. Responsibilities include preparing and analyzing datasets, training and evaluating models, building reproducible experiments, improving model performance, deploying inference workflows, and monitoring model behavior. Strong Python, programming, data structures, statistics, and machine learning fundamentals are expected. Experience with common ML frameworks, data processing, model evaluation, SQL, APIs, and cloud or MLOps tooling is valuable. We value experimental rigor, clear communication, and the ability to explain technical trade-offs.`,
+    jd: `Role: Machine Learning Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Develop and evaluate machine learning solutions for practical product or business problems. Build reproducible data and model workflows and communicate model performance and limitations.
+
+Key responsibilities:
+- Translate problem statements into supervised or unsupervised learning tasks and evaluation plans.
+- Collect, clean, transform, and analyze structured or unstructured datasets.
+- Train, validate, compare, and tune models; select metrics appropriate to the task.
+- Build reproducible experiments, track model versions, and investigate errors and data leakage.
+- Package inference workflows, integrate models with APIs, and collaborate on deployment and monitoring.
+
+Required qualifications:
+- Python programming, data structures, and software engineering fundamentals.
+- Statistics, probability, linear algebra, and core machine learning concepts.
+- Data manipulation using NumPy and pandas or equivalent tools.
+- Model training, validation, overfitting, feature engineering, and evaluation metrics.
+- SQL and the ability to explain model choices, trade-offs, and limitations.
+
+Preferred qualifications:
+- scikit-learn, PyTorch, TensorFlow, or Keras.
+- NLP, computer vision, recommendation systems, or time-series modeling.
+- Experiment tracking, Docker, REST APIs, AWS, or other cloud platforms.
+- MLOps, model serving, monitoring, and data pipeline experience.`,
   },
   {
     title: "DevOps / Cloud Engineer",
-    jd: `We are looking for a DevOps / Cloud Engineer to improve the reliability, scalability, and delivery of software systems. You will work with development teams to automate infrastructure and deployment workflows, monitor services, and improve operational practices. Responsibilities include maintaining CI/CD pipelines, managing cloud resources, automating repeatable tasks, monitoring application health, troubleshooting incidents, and applying security and access-control best practices. Strong Linux, scripting, networking, and problem-solving fundamentals are expected. Experience with AWS or another cloud platform, Docker, Kubernetes, Terraform, Git, observability tools, and CI/CD systems is useful. We value ownership, operational discipline, and collaboration across engineering teams.`,
+    jd: `Role: DevOps / Cloud Engineer
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Help engineering teams ship software reliably by automating infrastructure, delivery pipelines, and operational workflows. Improve service observability, security, and recovery practices.
+
+Key responsibilities:
+- Build and maintain CI/CD pipelines for automated build, test, and deployment workflows.
+- Provision and configure cloud resources; manage environments and infrastructure changes.
+- Automate operational tasks with Python, Bash, or similar scripting languages.
+- Containerize applications, support orchestration, and troubleshoot deployment failures.
+- Monitor service health, investigate incidents, manage logs/metrics, and document runbooks.
+- Apply least-privilege access, secrets management, network security, and backup practices.
+
+Required qualifications:
+- Linux, shell scripting, networking, DNS, HTTP, and troubleshooting fundamentals.
+- Git and CI/CD concepts, including build, test, artifact, and deployment stages.
+- Understanding of cloud infrastructure and IAM/security basics.
+- Basic scripting with Python or Bash and familiarity with logs and monitoring.
+- Containers and deployment fundamentals.
+
+Preferred qualifications:
+- AWS, Azure, or GCP; services such as compute, object storage, IAM, and networking.
+- Docker, Kubernetes, Terraform, or CloudFormation.
+- GitHub Actions, Jenkins, GitLab CI, Prometheus, Grafana, or Datadog.
+- Infrastructure as code, configuration management, incident response, and reliability engineering.`,
+  },
+  {
+    title: "SDET / QA Automation Engineer",
+    jd: `Role: Software Development Engineer in Test (SDET)
+Level: Entry-Level / 0–3 years
+
+Role overview:
+Build automation and test infrastructure that improves software quality and shortens feedback cycles. Work closely with developers and QA partners to validate features, diagnose failures, and prevent regressions.
+
+Key responsibilities:
+- Design, implement, and maintain automated tests for APIs, web applications, and service workflows.
+- Create reusable test utilities, fixtures, test data, and automation frameworks.
+- Validate REST APIs, database behavior, integrations, and end-to-end user journeys.
+- Investigate failures using logs, traces, dashboards, and reproducible test cases; report actionable defects.
+- Integrate automated suites into CI/CD pipelines and improve reliability, coverage, and execution time.
+- Collaborate in design and code reviews to identify testability and quality risks early.
+
+Required qualifications:
+- Programming proficiency in Python, Java, or JavaScript/TypeScript.
+- Software testing fundamentals: test design, boundary cases, regression, and defect lifecycle.
+- API testing, HTTP, REST, JSON, SQL, and database validation.
+- Automated testing with pytest, JUnit, Selenium, Playwright, Cypress, or comparable tools.
+- Git, debugging, CI/CD fundamentals, and clear technical documentation.
+
+Preferred qualifications:
+- AWS or other cloud services, Docker, Kubernetes, and distributed application testing.
+- Performance, load, reliability, or security testing fundamentals.
+- Jira, Kibana, Datadog, Grafana, or log/metrics analysis.
+- Experience building test frameworks, test data pipelines, or failure-triage automation.`,
   },
 ];
 
@@ -465,7 +639,11 @@ function Score({value, label, styles, C}: any) {
 function ReportView({report,fileName,onBack,styles,C}: any) {
   const q = report.quality;
   const j = report.job_match;
-  return <View>
+  const entrance = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(entrance, {toValue:1,duration:420,useNativeDriver:true}).start();
+  }, [entrance]);
+  return <Animated.View style={{opacity:entrance,transform:[{translateY:entrance.interpolate({inputRange:[0,1],outputRange:[18,0]})}]}}>
     <View style={styles.reportHeading}>
       <View style={styles.heroAccent}><View style={styles.heroAccentDot}/><Text style={styles.heroAccentText}>ANALYSIS COMPLETE</Text></View>
       <Text style={styles.heroTitle}>Your resume, reviewed.</Text>
@@ -535,7 +713,7 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
     <Card styles={styles}><Text style={styles.cardTitle}>Recommended next steps</Text>{q.top_suggestions.map((s:string,i:number)=><View key={i} style={styles.suggestion}><Text style={styles.suggestionNum}>{i+1}</Text><Text style={styles.suggestionText}>{s}</Text></View>)}</Card>
     <Text style={styles.privacy}>This score is an explainable estimate from CareerLeap's deterministic rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
     <Button styles={styles} C={C} title="Analyze another resume" onPress={onBack}/>
-  </View>;
+  </Animated.View>;
 }
 function Breakdown({item, styles}: any) {
   const assessed = typeof item.earned === "number" && Number.isFinite(item.earned);
