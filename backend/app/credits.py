@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List
 from uuid import uuid4
 
 import psycopg
@@ -152,7 +152,7 @@ def release_scan_credit(user_id: str, reservation_id: str) -> None:
 
 
 @router.get("/balance")
-def get_balance(user: dict = Depends(require_user)) -> dict[str, int]:
+def get_balance(user: dict = Depends(require_user)) -> Dict[str, int]:
     with _connect() as conn:
         with conn.transaction():
             _ensure_wallet(conn, user["uid"])
@@ -169,7 +169,7 @@ def get_balance(user: dict = Depends(require_user)) -> dict[str, int]:
 def get_transactions(
     limit: int = Query(default=25, ge=1, le=100),
     user: dict = Depends(require_user),
-) -> dict[str, list[dict[str, Any]]]:
+) -> Dict[str, List[Dict[str, Any]]]:
     with _connect() as conn:
         with conn.transaction():
             _ensure_wallet(conn, user["uid"])
