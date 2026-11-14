@@ -670,6 +670,7 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
         <Text style={styles.recommendation}>{item.why_it_matters}</Text>
         <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
         {item.source_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>SOURCE · EXTRACTED LINE {item.source_line.line}</Text><Text style={styles.sourceLineText}>{item.source_line.text}</Text></View> : null}
+        {item.related_source_lines?.map((source:any)=><View key={source.line} style={styles.sourceLine}><Text style={styles.sourceLineLabel}>RELATED SOURCE · EXTRACTED LINE {source.line}</Text><Text style={styles.sourceLineText}>{source.text}</Text></View>)}
         {item.questions_to_answer?.length > 0 ? <>
           <Text style={styles.actionLabel}>DETAILS TO ADD</Text>
           {item.questions_to_answer.map((question:string,index:number)=><Text key={index} style={styles.recommendation}>• {question}</Text>)}
