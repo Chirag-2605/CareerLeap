@@ -649,6 +649,10 @@ def _level(text: str) -> Optional[str]:
     for level in ("lead", "senior", "mid", "entry", "intern"):
         if any(_has(lowered, phrase) for phrase in LEVEL_TERMS[level]):
             return level
+    # A numeric experience window is an explicit seniority signal even when
+    # the JD omits words such as "junior" or "graduate".
+    if re.search(r"\b0\s*(?:-|–|—|to)\s*[0-3]\s*(?:years?|yrs?)\b", lowered):
+        return "entry"
     return None
 
 
@@ -724,7 +728,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
         role_assessment = "aligned" if candidate_role == target_role else "different_signal"
     if candidate_level and target_level:
         entry_experience_window = bool(re.search(
-            r"\b0\s*(?:-|–|—|to)\s*2\s*(?:years?|yrs?)\b",
+            r"\b0\s*(?:-|–|—|to)\s*[0-3]\s*(?:years?|yrs?)\b",
             _norm(job_description),
         ))
         internship_counts_for_entry = (

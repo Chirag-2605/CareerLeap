@@ -1,13 +1,15 @@
 export const LIGHT_THEME = {
-  ink: "#101828", muted: "#667085", soft: "#F7F8FC", line: "#E7EAF0",
-  white: "#FFFFFF", navy: "#172B4D", blue: "#4568E8", blueSoft: "#EEF2FF",
-  green: "#16865D", red: "#D64545", amber: "#B7791F",
-  input: "#FCFCFD", panel: "#F8FAFF", body: "#344054",
-  placeholder: "#98A2B3", track: "#EEF0F4",
-  tagText: "#344B7A", warningSoft: "#FFF8EB",
-  dangerTagText: "#B42318", dangerTagBg: "#FEF3F2",
-  successTagText: "#067647", successTagBg: "#ECFDF3",
-  warningTagText: "#8A6100", warningTagBg: "#FFF8E7",
+  // Warm, low-glare light palette. Keep surfaces distinct without using
+  // stark pure white across the page, header, cards, and upload panel.
+  ink: "#202633", muted: "#687386", soft: "#F3F1EB", line: "#E5E1D8",
+  white: "#FFFEFA", navy: "#172B4D", blue: "#4568E8", blueSoft: "#EDF1FF",
+  green: "#16865D", red: "#D64545", amber: "#9A681B",
+  input: "#FBFAF6", panel: "#F8F6F0", body: "#394456",
+  placeholder: "#8993A2", track: "#E9E6DF",
+  tagText: "#344B7A", warningSoft: "#FBF3E5",
+  dangerTagText: "#A93229", dangerTagBg: "#FBEFEC",
+  successTagText: "#067647", successTagBg: "#EAF5EE",
+  warningTagText: "#805B12", warningTagBg: "#F8F0DE",
 };
 
 export const DARK_THEME = {
