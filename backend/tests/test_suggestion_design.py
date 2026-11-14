@@ -110,3 +110,44 @@ def test_job_match_gaps_become_contextual_prompts_not_keyword_stuffing():
     assert next(item for item in job_items if "docker" in item["code"])["priority"] == "medium"
     assert all(item["questions_to_answer"] for item in job_items)
     assert all("keyword list" not in item["rewrite_template"].lower() for item in job_items if item["rewrite_template"])
+
+
+
+DETAILED_PROJECT_SAMPLE = """Alex Doe
+EDUCATION
+Example University — B.Tech Computer Science
+EXPERIENCE
+Software Intern
+• Built and maintained internal services using Python and PostgreSQL.
+PROJECTS
+NovaChat
+MERN stack application for real-time chat, voice, and video communication
+• Developed a real-time communication platform using React, Node.js, Express.js, and MongoDB, implementing JWT authentication with OTP verification and persistent message history.
+• Implemented real-time messaging with Socket.io and peer-to-peer voice/video communication using WebRTC, supporting individual and group conversations.
+Blog-zone
+MERN stack blogging platform
+• Built secure user authentication and registration using Google OAuth, with role-based access for managing platform content.
+• Developed an admin dashboard for content moderation and post management, implementing like/dislike functionality and Dark Mode.
+SKILLS
+C++, SQL, MySQL, Git, Data Structures and Algorithms
+CODING PLATFORMS
+LeetCode: 750+ problems
+GeeksforGeeks: 400+ problems
+"""
+
+
+def test_detailed_projects_are_not_flagged_for_missing_technical_context():
+    result = design_suggestions(DETAILED_PROJECT_SAMPLE, {"findings": []})
+    assert not any(
+        item["code"] == "expand_project_technical_evidence"
+        for item in result["items"]
+    )
+
+
+def test_coding_platforms_are_supporting_evidence_for_dsa_not_project_proof():
+    result = design_suggestions(DETAILED_PROJECT_SAMPLE, {"findings": []})
+    skills = next(
+        (item for item in result["items"] if item["category"] == "skills_evidence"),
+        None,
+    )
+    assert skills is None or "data structures and algorithms" not in skills["why_it_matters"].lower()
