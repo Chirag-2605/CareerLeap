@@ -146,6 +146,7 @@ def _suggestion(
     questions: Optional[List[str]] = None,
     rewrite: Optional[str] = None,
     impact_guidance: Optional[str] = None,
+    related_sources: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     return {
         "code": code,
@@ -158,6 +159,10 @@ def _suggestion(
             {"line": source["line"], "text": BULLET_RE.sub("", source["text"]).strip()}
             if source else None
         ),
+        "related_source_lines": [
+            {"line": item["line"], "text": BULLET_RE.sub("", item["text"]).strip()}
+            for item in (related_sources or []) if source is None or item["line"] != source["line"]
+        ],
         "questions_to_answer": questions or [],
         "rewrite_template": rewrite,
         "impact_guidance": impact_guidance,
@@ -184,24 +189,34 @@ def design_suggestions(
         + [item for item in weak if item["section"] in {"leadership", "volunteer"}][:1]
     )
 
-    for item in selected_weak:
-        section = item["section"]
-        label = "project" if section == "projects" else "experience"
+    # Group weak bullets by section to avoid repeating identical coaching.
+    for section in ("experience", "projects", "leadership", "volunteer"):
+        group = [item for item in selected_weak if item["section"] == section]
+        if not group:
+            continue
+        first = group[0]
         items.append(_suggestion(
-            code="clarify_{0}_line_{1}".format(section, item["line"]),
+            code="clarify_{0}_evidence".format(section),
             category="project_evidence" if section == "projects" else "experience_evidence",
             priority="high" if section == "experience" else "medium",
-            title="Add your individual contribution to this {0} bullet".format(label),
-            rationale="The current line is too broad to show what you personally delivered. A recruiter cannot yet identify the task, technical approach or result.",
-            where_to_edit="{0} section · extracted line {1}".format(section.title(), item["line"]),
-            source=item,
+            title="Strengthen your {0} descriptions".format(section.replace("_", " ")),
+            rationale=(
+                "{0} {1} need more specific evidence of your individual contribution, "
+                "technical approach and result."
+            ).format(len(group), "bullet" if len(group) == 1 else "bullets"),
+            where_to_edit="{0} section · {1} extracted line(s)".format(section.title(), len(group)),
+            source=first,
+            related_sources=group[1:],
             questions=[
                 "Which exact feature, component, bug, or workflow did you work on?",
                 "What did you personally implement, change, investigate, or deliver?",
                 "Which technology, tool, or method did you actually use?",
                 "What changed as a result, or what was the scope of the work?",
             ],
-            rewrite=_rewrite_template(item["text"]),
+            rewrite=_rewrite_template(first["text"]) if len(group) == 1 else (
+                "For each bullet, state [specific feature or workflow], [your individual action], "
+                "[verified technology or method], and [verified outcome or scope]."
+            ),
             impact_guidance=(
                 "If you have a defensible number, add it. If not, describe the real scope, complexity, "
                 "users, workflow, reliability improvement, or deliverable instead."
@@ -299,31 +314,30 @@ def design_suggestions(
     # instructions to add keywords without supporting experience.
     if job_match:
         # V4 exposes evidence-backed skill_gaps rather than V1's actionable_suggestions.
-        for gap in job_match.get("skill_gaps", []):
-            skill = gap.get("skill", "").strip()
-            if not skill:
+        gaps = [gap for gap in job_match.get("skill_gaps", [])
+                 if gap.get("skill", "").strip()]
+        for classification in ("required", "preferred"):
+            grouped = [gap for gap in gaps if gap.get("classification") == classification]
+            if not grouped:
                 continue
-            classification = gap.get("classification", "preferred")
+            skills = [gap["skill"].strip() for gap in grouped]
             priority = "high" if classification == "required" else "medium"
-            alternatives = gap.get("alternatives") or []
-            skill_label = " or ".join(alternatives) if alternatives else skill
             items.append(_suggestion(
-                code="job_skill_evidence_" + re.sub(r"[^a-z0-9]+", "_", skill.lower()).strip("_"),
+                code="job_skill_evidence_" + classification,
                 category="job_match",
                 priority=priority,
-                title="Check whether you can evidence {0}".format(skill_label),
+                title="Review evidence for {0} skills".format(classification),
                 rationale=(
-                    "The job description identifies {0} as a {1} requirement, but the analyzer did not find "
-                    "resume evidence for it. This is an evidence gap, not proof that you lack the skill. "
-                    "Add it only if you have genuinely used it."
-                ).format(skill_label, classification),
+                    "The job description lists these {0} skills, but clear resume evidence was not found: {1}. "
+                    "This is an evidence gap, not proof that you lack them. Add only skills you have genuinely used."
+                ).format(classification, ", ".join(skills[:10])),
                 where_to_edit="Relevant Skills, Experience, or Projects section",
                 source=None,
                 questions=[
-                    "Have you used {0} in a real project, internship, coursework, or independent build?".format(skill_label),
-                    "What did you personally do with it, and where can that example be shown?",
+                    "Which of these skills have you used in a real project, internship, coursework, or independent build?",
+                    "What did you personally do with each skill, and where can that example be shown?",
                 ],
-                rewrite="Used {0} to [specific task] in [project or role], resulting in [verified deliverable or outcome].".format(skill_label),
+                rewrite="For each substantiated skill, describe [specific task] in [project or role], including [verified contribution and outcome].",
             ))
 
     # Optional polish must not be presented as a mandatory ATS requirement.
