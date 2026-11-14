@@ -21,7 +21,10 @@ STOP = {
 SYNONYMS = {
     "interfaces": "interface", "components": "component",
     "endpoints": "endpoint", "apis": "api", "restful": "rest",
-    "services": "service", "modules": "module", "applications": "application",
+    "services": "software_artifact", "service": "software_artifact",
+    "modules": "software_artifact", "module": "software_artifact",
+    "components": "software_artifact", "component": "software_artifact",
+    "applications": "software_artifact", "application": "software_artifact",
     "queries": "query", "databases": "database", "schemas": "schema",
     "integrated": "integration", "integrating": "integration",
     "automated": "automation", "automating": "automation",
