@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Linking, Platform, Pressable, SafeAreaView,
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -498,6 +498,27 @@ export default function App() {
     }
   };
 
+  const requestMoreCredits = async () => {
+    const subject = "CareerLeap - Request for more scan credits";
+    const body = [
+      "Hi Chirag,",
+      "",
+      "I've used all my free CareerLeap resume scans and would like to request additional credits.",
+      "",
+      `CareerLeap account: ${user?.email || "Not available"}`,
+      "",
+      "Please let me know how I can purchase or receive more credits.",
+      "",
+      "Thanks!",
+    ].join("\n");
+    const mailto = `mailto:chirag240504@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      await Linking.openURL(mailto);
+    } catch {
+      showToast("Couldn't open your email app. Please email chirag240504@gmail.com to request more credits.", "error");
+    }
+  };
+
   const scanResume = async () => {
     if (!user) return showToast("Please sign in before scanning.", "error");
     if (!selectedAsset) return showToast("Select a PDF or DOCX before scanning.", "error");
@@ -609,6 +630,14 @@ export default function App() {
             <Text style={styles.creditPillText}>{creditsLoading ? "…" : creditsError ? "—" : String(credits ?? 0)}</Text>
           </View>
         </View>
+        {!creditsLoading && !creditsError && credits === 0 ? (
+          <View style={styles.creditRequest}>
+            <Text style={styles.creditRequestTitle}>Out of scan credits?</Text>
+            <Text style={styles.creditRequestText}>Email us and we'll help you add more credits while CareerLeap is in its early-access phase.</Text>
+            <Button styles={styles} C={C} title="Request more credits" onPress={requestMoreCredits}/>
+            <Text style={styles.creditRequestEmail}>chirag240504@gmail.com</Text>
+          </View>
+        ) : null}
         <Card styles={styles}>
           <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>Resume analysis</Text><Text style={styles.bodySmall}>A focused review, built around evidence.</Text></View><Text style={styles.newTag}>BETA</Text></View>
           <View style={styles.uploadBox}>
@@ -806,6 +835,10 @@ function createStyles(C: any) { return StyleSheet.create({
   creditSubtitle:{fontSize:11,color:C.muted,marginTop:4},
   creditPill:{minWidth:42,height:42,borderRadius:13,backgroundColor:C.white,alignItems:"center",justifyContent:"center",paddingHorizontal:8},
   creditPillText:{fontSize:17,fontWeight:"900",color:C.blue},
+  creditRequest:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:15,padding:16,marginBottom:14},
+  creditRequestTitle:{fontSize:15,fontWeight:"800",color:C.ink},
+  creditRequestText:{fontSize:12,lineHeight:18,color:C.muted,marginTop:5},
+  creditRequestEmail:{fontSize:11,color:C.blue,fontWeight:"700",textAlign:"center",marginTop:10},
   cardTitle:{fontSize:18,fontWeight:"800",color:C.ink,letterSpacing:-.35},
   button:{backgroundColor:C.navy,paddingVertical:15,paddingHorizontal:18,borderRadius:13,alignItems:"center",marginTop:15,elevation:2,shadowColor:C.navy,shadowOpacity:.13,shadowRadius:5,shadowOffset:{width:0,height:3}},
   buttonPressed:{opacity:.86,transform:[{scale:.99}]},buttonSecondary:{backgroundColor:"#EEF1F6",elevation:0,shadowOpacity:0},buttonText:{fontSize:14,fontWeight:"800",color:C.white,letterSpacing:.1},
