@@ -214,8 +214,8 @@ def design_suggestions(
                 "What changed as a result, or what was the scope of the work?",
             ],
             rewrite=_rewrite_template(first["text"]) if len(group) == 1 else (
-                "For each bullet, state [specific feature or workflow], [your individual action], "
-                "[verified technology or method], and [verified outcome or scope]."
+                "For each bullet, describe [specific feature or workflow], [your individual action] using "
+                "[technology or method], and [verified outcome or scope]."
             ),
             impact_guidance=(
                 "If you have a defensible number, add it. If not, describe the real scope, complexity, "
