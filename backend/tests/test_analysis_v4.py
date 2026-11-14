@@ -347,10 +347,10 @@ def test_single_v4_pipeline_feeds_post_analysis_suggestion_design():
     quality = analyze_quality_v4(parsed)
     job_match = analyze_job_match_v4(
         parsed,
-        "Required Qualifications:\\n- Python\\n- Kotlin\\n"
-        "Responsibilities:\\n- Build and maintain backend services using Python.",
+        "Required Qualifications:\n- Python\n- Kotlin\n"
+        "Responsibilities:\n- Build and maintain backend services using Python.",
     )
-    resume_text = "\\n".join(item["text"] for item in parsed["evidence"])
+    resume_text = "\n".join(item["text"] for item in parsed["evidence"])
     plan = design_suggestions(resume_text, quality, job_match)
 
     assert quality["version"] == "quality-v4"
