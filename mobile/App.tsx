@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator, Alert, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
+  ActivityIndicator, Animated, AppState, KeyboardAvoidingView, Platform, Pressable, SafeAreaView,
   ScrollView, StatusBar, StyleSheet, Text, TextInput, View
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import {
-  createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword,
-  signOut, User
+  createUserWithEmailAndPassword, onAuthStateChanged, reload, sendEmailVerification,
+  signInWithEmailAndPassword, signOut, User
 } from "firebase/auth";
 import { auth, firebaseConfigured } from "./src/firebase";
 import { analyzeResume } from "./src/api";
@@ -16,22 +16,42 @@ import { DARK_THEME, LIGHT_THEME } from "./src/theme";
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
+const EMAIL_LOCAL_RE = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/i;
+const EMAIL_LABEL_RE = /^[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?$/i;
 
 type Report = any;
+type ToastTone = "success" | "error" | "info";
+function isValidEmail(value: string) {
+  const email = value.trim();
+  if (!email || email.length > 254 || email.includes("..")) return false;
+  const parts = email.split("@");
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (!local || local.length > 64 || !EMAIL_LOCAL_RE.test(local) || local.startsWith(".") || local.endsWith(".")) return false;
+  const labels = domain.split(".");
+  return labels.length >= 2 && labels.every(label => label.length > 0 && label.length <= 63 && EMAIL_LABEL_RE.test(label))
+    && /^[A-Z]{2,63}$/i.test(labels[labels.length - 1]);
+}
 function firebaseAuthMessage(error: any) {
   const code = error?.code || "";
-  if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") {
-    return "Firebase Authentication is not fully configured. In Firebase Console, open Authentication → Sign-in method and enable Email/Password, then try again.";
-  }
-  if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") {
-    return "The Firebase API key is invalid. Check EXPO_PUBLIC_FIREBASE_API_KEY in mobile/.env and restart Expo.";
-  }
-  if (code === "auth/network-request-failed") {
-    return "Couldn't reach Firebase. Check your internet connection and try again.";
-  }
-  return error?.message || "Please try again.";
+  if (code.includes("CONFIGURATION_NOT_FOUND") || code === "auth/operation-not-allowed") return "Email sign-in is not enabled yet. Please contact support.";
+  if (code === "auth/invalid-api-key" || code === "auth/api-key-not-valid") return "Authentication is temporarily unavailable. Please try again later.";
+  if (code === "auth/network-request-failed") return "Couldn't reach the sign-in service. Check your internet connection.";
+  if (code === "auth/invalid-email") return "Enter a valid email address.";
+  if (code === "auth/email-already-in-use") return "An account with this email already exists. Try signing in.";
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Incorrect email or password.";
+  if (code === "auth/weak-password") return "Choose a stronger password.";
+  if (code === "auth/too-many-requests") return "Too many attempts. Please wait a moment and try again.";
+  if (code === "auth/user-disabled") return "This account is disabled. Please contact support.";
+  return "Authentication couldn't be completed. Please try again.";
 }
 
+const SCAN_STEPS = [
+  "Uploading your resume securely",
+  "Extracting text and resume sections",
+  "Reviewing skills and experience",
+  "Preparing your personalized suggestions",
+];
 
 const ROLE_TEMPLATES = [
   {
@@ -79,7 +99,11 @@ export default function App() {
   const splashScale = useRef(new Animated.Value(0.88)).current;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [authMode, setAuthMode] = useState<"login"|"signup">("login");
+  const [toast, setToast] = useState<{message:string; tone:ToastTone}|null>(null);
+  const [loadingMode, setLoadingMode] = useState<"auth"|"scan"|null>(null);
+  const [scanStage, setScanStage] = useState(0);
   const [job, setJob] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
   const [showRoleOptions, setShowRoleOptions] = useState(false);
@@ -90,6 +114,26 @@ export default function App() {
   const [showScanner, setShowScanner] = useState(false);
 
   const sessionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const authFlowInProgress = useRef(false);
+  const showToast = (message: string, tone: ToastTone = "info") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({message, tone});
+    toastTimer.current = setTimeout(() => setToast(null), 3600);
+  };
+
+  useEffect(() => () => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (loadingMode !== "scan") {
+      setScanStage(0);
+      return;
+    }
+    const timer = setInterval(() => setScanStage(current => Math.min(current + 1, SCAN_STEPS.length - 1)), 1500);
+    return () => clearInterval(timer);
+  }, [loadingMode]);
 
   useEffect(() => {
     Animated.spring(splashScale, { toValue: 1, speed: 14, bounciness: 5, useNativeDriver: true }).start();
@@ -123,9 +167,19 @@ export default function App() {
     };
 
     const validateSession = async (candidate: User) => {
-      if (checking || !mounted) return;
+      if (checking || !mounted || authFlowInProgress.current || firebaseAuth.currentUser?.uid !== candidate.uid) return;
       checking = true;
       try {
+        await reload(candidate);
+        if (!candidate.emailVerified) {
+          clearSessionTimer();
+          if (mounted) {
+            setUser(null);
+            showToast("Please verify your email address before continuing. Check your inbox for the verification link.", "info");
+          }
+          if (firebaseAuth.currentUser?.uid === candidate.uid) await signOut(firebaseAuth);
+          return;
+        }
         const token = await candidate.getIdTokenResult();
         const authTime = Number(token.claims.auth_time) * 1000;
         if (!Number.isFinite(authTime) || Date.now() - authTime >= SESSION_MAX_AGE_MS) {
@@ -174,23 +228,53 @@ export default function App() {
   }, []);
 
   const handleEmailAuth = async () => {
-    if (!auth) return Alert.alert("Firebase not configured", "Add your Firebase settings to mobile/.env first.");
-    if (!email.trim()) return Alert.alert("Check your details", "Enter a valid email address.");
+    if (!auth) return showToast("Firebase setup is incomplete. Please try again later.", "error");
+    const normalizedEmail = email.trim();
+    if (!isValidEmail(normalizedEmail)) return showToast("Enter a valid email address, such as name@example.com.", "error");
     if (authMode === "signup" && !PASSWORD_RULE.test(password)) {
-      return Alert.alert("Choose a stronger password", "Use at least 8 characters with an uppercase letter, a lowercase letter, a number, and a special character.");
+      return showToast("Use at least 8 characters with uppercase, lowercase, a number and a special character.", "error");
     }
-    if (authMode === "login" && !password) return Alert.alert("Check your details", "Enter your password.");
+    if (!password) return showToast("Enter your password.", "error");
+
+    authFlowInProgress.current = true;
     setBusy(true);
+    setLoadingMode("auth");
     try {
-      if (authMode === "login") await signInWithEmailAndPassword(auth, email.trim(), password);
-      else await createUserWithEmailAndPassword(auth, email.trim(), password);
-      setPassword("");
-    } catch (e:any) { Alert.alert("Authentication failed", firebaseAuthMessage(e)); }
-    finally { setBusy(false); }
+      if (authMode === "signup") {
+        const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+        await sendEmailVerification(credential.user);
+        await signOut(auth);
+        setUser(null);
+        setPassword("");
+        setAuthMode("login");
+        setShowPassword(false);
+        showToast("Verification link sent. Verify your email before signing in.", "success");
+      } else {
+        const credential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+        await reload(credential.user);
+        if (!credential.user.emailVerified) {
+          await sendEmailVerification(credential.user);
+          await signOut(auth);
+          setUser(null);
+          setPassword("");
+          showToast("Your email isn't verified yet. We've sent a fresh verification link.", "info");
+          return;
+        }
+        setUser(credential.user);
+        setPassword("");
+        showToast("Signed in successfully.", "success");
+      }
+    } catch (e:any) {
+      showToast(firebaseAuthMessage(e), "error");
+    } finally {
+      authFlowInProgress.current = false;
+      setBusy(false);
+      setLoadingMode(null);
+    }
   };
 
   const pickResume = async () => {
-    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
+    if (!user) return showToast("Please sign in before scanning.", "error");
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
@@ -201,15 +285,17 @@ export default function App() {
       setSelectedAsset(asset);
       setFileName(asset.name);
       setReport(null);
-    } catch (e: any) {
-      Alert.alert("Couldn't select resume", e.message || "Please try another file.");
+    } catch {
+      showToast("Couldn't select that file. Please try again.", "error");
     }
   };
 
   const scanResume = async () => {
-    if (!user) return Alert.alert("Sign in required", "Please sign in before scanning.");
-    if (!selectedAsset) return Alert.alert("Choose a resume", "Select a PDF or DOCX before scanning.");
+    if (!user) return showToast("Please sign in before scanning.", "error");
+    if (!selectedAsset) return showToast("Select a PDF or DOCX before scanning.", "error");
     setBusy(true);
+    setLoadingMode("scan");
+    setScanStage(0);
     setReport(null);
     try {
       const result = await analyzeResume(
@@ -222,9 +308,10 @@ export default function App() {
       setReport(result);
       setShowScanner(false);
     } catch (e: any) {
-      Alert.alert("Couldn't analyze resume", e.message || "Please try again.");
+      showToast(e?.message || "Resume analysis couldn't be completed. Please try again.", "error");
     } finally {
       setBusy(false);
+      setLoadingMode(null);
     }
   };
 
@@ -255,8 +342,12 @@ export default function App() {
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
       <Pressable onPress={() => setDarkMode((v) => !v)} style={styles.themeToggle} accessibilityRole="button" accessibilityLabel={darkMode ? "Switch to light mode" : "Switch to dark mode"}><Text style={styles.themeToggleText}>{darkMode ? "☀ Light" : "☾ Dark"}</Text></Pressable>
-      {user ? <Pressable hitSlop={12} onPress={() => { signOut(auth!); reset(); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
+      {user ? <Pressable hitSlop={12} onPress={() => { void signOut(auth!).then(() => { reset(); showToast("Signed out.", "success"); }).catch(() => showToast("Couldn't sign out. Please try again.", "error")); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
+    {toast && <View pointerEvents="none" style={[styles.toast, toast.tone === "error" ? styles.toastError : toast.tone === "success" ? styles.toastSuccess : styles.toastInfo]}>
+      <Text style={styles.toastIcon}>{toast.tone === "error" ? "!" : toast.tone === "success" ? "✓" : "i"}</Text>
+      <Text style={styles.toastText}>{toast.message}</Text>
+    </View>}
 
     <KeyboardAvoidingView style={styles.keyboardArea} behavior={Platform.OS === "ios" ? "padding" : "height"}>
     <ScrollView
@@ -278,9 +369,16 @@ export default function App() {
           <Text style={styles.bodySmall}>Sign in to access your resume analysis workspace.</Text>
           {!firebaseConfigured && <Text style={styles.warning}>Firebase setup required. Add the values from mobile/.env.example to mobile/.env.</Text>}
           <Label styles={styles}>Email address</Label><TextInput value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="you@example.com" placeholderTextColor={C.placeholder} style={styles.input}/>
-          <Label styles={styles}>Password</Label><TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={styles.input}/>
+          <Label styles={styles}>Password</Label>
+          <View style={styles.passwordRow}>
+            <TextInput value={password} onChangeText={setPassword} secureTextEntry={!showPassword} autoComplete={authMode === "login" ? "current-password" : "new-password"} placeholder={authMode === "login" ? "Enter your password" : "Create a strong password"} placeholderTextColor={C.placeholder} style={[styles.input,styles.passwordInput]}/>
+            <Pressable onPress={() => setShowPassword(value => !value)} style={styles.passwordToggle} accessibilityRole="button" accessibilityLabel={showPassword ? "Hide password" : "Show password"}>
+              <Text style={styles.passwordToggleText}>{showPassword ? "Hide" : "Show"}</Text>
+            </Pressable>
+          </View>
           {authMode === "signup" && <Text style={styles.passwordHint}>At least 8 characters, including uppercase, lowercase, a number and a special character.</Text>}
           <Button styles={styles} C={C} title={busy ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"} onPress={handleEmailAuth} disabled={busy || !firebaseConfigured}/>
+          {loadingMode === "auth" && <View style={styles.authLoading}><ActivityIndicator size="small" color={C.blue}/><Text style={styles.bodySmall}>Securely checking your account…</Text></View>}
           <Pressable onPress={() => setAuthMode(authMode === "login" ? "signup" : "login")} style={styles.authSwitch}>
             <Text style={styles.linkCenter}>{authMode === "login" ? "New to CareerLeap? Create an account" : "Already have an account? Sign in"}</Text>
           </Pressable>
@@ -329,7 +427,16 @@ export default function App() {
           <TextInput value={job} onChangeText={setJob} multiline textAlignVertical="top" placeholder="Or paste a job description here..." placeholderTextColor={C.placeholder} style={[styles.input,styles.textarea]}/>
           <Text style={styles.bodySmall}>You can scan without a job description for a general resume-quality review, or add one for job-specific feedback.</Text>
           <Button styles={styles} C={C} title={busy ? "Scanning..." : "Scan"} onPress={scanResume} disabled={busy || !selectedAsset}/>
-          {busy && <ActivityIndicator color={C.blue} style={{marginTop:14}}/>}
+          {loadingMode === "scan" && <View style={styles.scanProgress}>
+            <View style={styles.progressHeader}><ActivityIndicator color={C.blue}/><Text style={styles.progressTitle}>Analyzing your resume</Text></View>
+            <View style={styles.progressTrack}><View style={[styles.progressFill,{width:Math.min(90,(scanStage + 1) * 22.5) + "%"}]}/></View>
+            {SCAN_STEPS.map((step,index) => <View key={step} style={styles.scanStep}>
+              <Text style={[styles.scanStepMark,index < scanStage && {color:C.green}]}>{index < scanStage ? "✓" : index === scanStage ? "●" : "○"}</Text>
+              <Text style={[styles.scanStepText,index === scanStage && {color:C.ink,fontWeight:"700"}]}>{step}</Text>
+              <Text style={styles.scanStepStatus}>{index < scanStage ? "Done" : index === scanStage ? "Now" : "Next"}</Text>
+            </View>)}
+            <Text style={styles.progressNote}>These are illustrative stages. Your report appears when the actual analysis finishes.</Text>
+          </View>}
           <View style={styles.privacyRow}><Text style={styles.privacyIcon}>⌑</Text><Text style={styles.privacy}>Your scan isn't saved to history. The resume is processed to generate this report and is not retained by this V1 app.</Text></View>
         </Card>
         <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>A clearer view of your resume</Text><Text style={styles.bodySmall}>Useful feedback, without the guesswork.</Text></View>
@@ -389,6 +496,7 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
         <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
         {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
         <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+        {item.suggested_rewrite ? <><Text style={styles.actionLabel}>SUGGESTED REWRITE</Text><Text style={styles.rewriteText}>{item.suggested_rewrite}</Text></> : null}
         <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
       </View>)}
     </Card>}
@@ -453,6 +561,26 @@ function createStyles(C: any) { return StyleSheet.create({
   authSwitch:{paddingVertical:13},linkCenter:{textAlign:"center",color:C.blue,fontSize:12,fontWeight:"700"},
   warning:{color:C.amber,fontSize:11,lineHeight:17,marginTop:12,backgroundColor:C.warningSoft,padding:10,borderRadius:9},
   passwordHint:{fontSize:10,lineHeight:16,color:C.muted,marginTop:7},
+  passwordRow:{flexDirection:"row",alignItems:"center",position:"relative"},
+  passwordInput:{flex:1,paddingRight:66},
+  passwordToggle:{position:"absolute",right:12,paddingHorizontal:5,paddingVertical:9},
+  passwordToggleText:{fontSize:12,fontWeight:"800",color:C.blue},
+  toast:{position:"absolute",top:78,left:18,right:18,zIndex:1000,elevation:12,borderRadius:14,paddingHorizontal:14,paddingVertical:13,flexDirection:"row",alignItems:"center",gap:10,borderWidth:1,borderColor:C.line,backgroundColor:C.white},
+  toastError:{borderLeftWidth:4,borderLeftColor:C.red},toastSuccess:{borderLeftWidth:4,borderLeftColor:C.green},toastInfo:{borderLeftWidth:4,borderLeftColor:C.blue},
+  toastIcon:{fontSize:14,fontWeight:"900",color:C.blue,width:18,textAlign:"center"},
+  toastText:{flex:1,fontSize:12,lineHeight:18,color:C.ink,fontWeight:"600"},
+  authLoading:{flexDirection:"row",alignItems:"center",justifyContent:"center",gap:9,marginTop:12},
+  scanProgress:{marginTop:16,padding:14,borderRadius:14,backgroundColor:C.panel,borderWidth:1,borderColor:C.line},
+  progressHeader:{flexDirection:"row",alignItems:"center",gap:9},
+  progressTitle:{fontSize:13,fontWeight:"800",color:C.ink},
+  progressTrack:{height:7,backgroundColor:C.track,borderRadius:8,overflow:"hidden",marginTop:14,marginBottom:8},
+  progressFill:{height:7,backgroundColor:C.blue,borderRadius:8},
+  scanStep:{flexDirection:"row",alignItems:"center",gap:8,paddingVertical:7},
+  scanStepMark:{width:15,fontSize:12,color:C.muted,fontWeight:"900"},
+  scanStepText:{flex:1,fontSize:11,color:C.muted},
+  scanStepStatus:{fontSize:9,color:C.muted,fontWeight:"700"},
+  progressNote:{fontSize:9,lineHeight:14,color:C.muted,marginTop:7},
+  rewriteText:{fontSize:12,lineHeight:19,color:C.ink,backgroundColor:C.blueSoft,padding:11,borderRadius:9,marginTop:4},
   rowBetween:{flexDirection:"row",justifyContent:"space-between",alignItems:"center"},
   newTag:{backgroundColor:C.blueSoft,color:C.blue,fontWeight:"800",fontSize:9,letterSpacing:1,paddingHorizontal:10,paddingVertical:7,borderRadius:20,overflow:"hidden"},
   uploadBox:{backgroundColor:C.panel,borderWidth:1,borderColor:"#D9E2F4",borderStyle:"dashed",borderRadius:16,padding:21,alignItems:"center",marginTop:19,marginBottom:9},
