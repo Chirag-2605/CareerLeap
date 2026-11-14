@@ -34,6 +34,15 @@ def _firebase_app():
         )
 
 
+def _verified_user_from_claims(decoded: dict) -> dict:
+    if not decoded.get("email_verified", False):
+        raise HTTPException(
+            status_code=403,
+            detail="Please verify your email address before using CareerLeap."
+        )
+    return {"uid": decoded["uid"], "email": decoded.get("email")}
+
+
 async def require_user(authorization: Optional[str] = Header(default=None)) -> dict:
     if not settings.auth_required:
         return {"uid": "local-development-user", "email": "local@example.test"}
@@ -45,10 +54,10 @@ async def require_user(authorization: Optional[str] = Header(default=None)) -> d
     try:
         from firebase_admin import auth
         decoded = auth.verify_id_token(token, app=_firebase_app(), check_revoked=True)
-        return {"uid": decoded["uid"], "email": decoded.get("email")}
     except Exception:
         logger.exception("Firebase ID token verification failed")
         raise HTTPException(
             status_code=401,
             detail="Your session is invalid or expired. Please sign in again."
         )
+    return _verified_user_from_claims(decoded)
