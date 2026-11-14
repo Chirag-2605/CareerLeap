@@ -295,3 +295,21 @@ B.Tech, Example University, 2024
         assert "applications." not in gaps["what_is_missing"]
         assert "managers." not in gaps["what_is_missing"]
     assert "api" in result["matched_skills"]
+
+
+
+def test_about_me_is_recognized_as_summary_heading():
+    resume = """Alex Doe
+ABOUT ME
+Software developer with experience building APIs.
+Skills
+Python, Java, SQL
+Experience
+Software Engineer
+- Built a backend API using Python and SQL.
+Education
+B.Tech, Example University, 2024
+"""
+    result = analyze_quality(resume)
+    assert not any(item["code"] == "missing_summary_section" for item in result["findings"])
+    assert not any(item["code"] == "add_summary_section" for item in result["actionable_suggestions"])
