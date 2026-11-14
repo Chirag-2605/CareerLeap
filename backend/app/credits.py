@@ -247,12 +247,6 @@ def verify_google_play_purchase(
 
     verified = verify_product_purchase(payload.product_id, payload.purchase_token, user_id)
     purchase_time = None
-    if verified.get("purchase_time_millis"):
-        from datetime import datetime, timezone
-        purchase_time = datetime.fromtimestamp(
-            int(verified["purchase_time_millis"]) / 1000,
-            tz=timezone.utc,
-        )
 
     with _connect() as conn:
         with conn.transaction():
