@@ -682,7 +682,8 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
             return None, []
         points = sum(
             1.0 if next((m["status"] for m in skill_matches if m["skill"] == item["name"]), "not_found") == "demonstrated"
-            else 0.65 if any(m["skill"] == item["name"] for m in skill_matches)
+            else 0.65 if next((m["status"] for m in skill_matches if m["skill"] == item["name"]), "not_found") == "listed"
+            else 0.45 if next((m["status"] for m in skill_matches if m["skill"] == item["name"]), "not_found") == "supporting"
             else 0.0
             for item in items
         )
