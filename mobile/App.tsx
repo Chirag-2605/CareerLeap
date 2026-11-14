@@ -455,9 +455,10 @@ export default function App() {
 }
 
 function Score({value, label, styles, C}: any) {
-  const color = value >= 80 ? C.green : value >= 60 ? C.blue : C.amber;
+  const assessed = typeof value === "number" && Number.isFinite(value);
+  const color = !assessed ? C.muted : value >= 80 ? C.green : value >= 60 ? C.blue : C.amber;
   return <View style={styles.scoreCard}>
-    <View style={[styles.scoreCircle,{borderColor:color}]}><Text style={[styles.scoreNumber,{color}]}>{value}</Text><Text style={styles.scoreOutOf}>/100</Text></View>
+    <View style={[styles.scoreCircle,{borderColor:color}]}><Text style={[styles.scoreNumber,{color}]}>{assessed ? value : "N/A"}</Text>{assessed && <Text style={styles.scoreOutOf}>/100</Text>}</View>
     <Text style={styles.scoreLabel}>{label}</Text>
   </View>;
 }
@@ -537,9 +538,10 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
   </View>;
 }
 function Breakdown({item, styles}: any) {
-  const pct = item.possible ? item.earned/item.possible : 0;
+  const assessed = typeof item.earned === "number" && Number.isFinite(item.earned);
+  const pct = item.possible && assessed ? item.earned/item.possible : 0;
   return <View style={styles.breakdown}>
-    <View style={styles.rowBetween}><Text style={styles.breakLabel}>{item.label}</Text><Text style={styles.breakValue}>{item.earned}/{item.possible}</Text></View>
+    <View style={styles.rowBetween}><Text style={styles.breakLabel}>{item.label}</Text><Text style={styles.breakValue}>{assessed ? `${item.earned}/${item.possible}` : "Not assessed"}</Text></View>
     <View style={styles.barBg}><View style={[styles.barFill,{width:`${pct*100}%`} as any]}/></View>
     {item.deducted > 0 && <Text style={styles.deduction}>−{item.deducted} points</Text>}
   </View>;
