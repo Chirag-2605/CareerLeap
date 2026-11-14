@@ -531,9 +531,12 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
     # such as "one of Java, Python, C++, JavaScript, or TypeScript" incorrectly
     # counts every language as a separate mandatory skill.
     alternative_patterns = (
-        ("programming_language", ("java", "kotlin", "python", "c++", "javascript", "typescript")),
+        ("programming_language", ("java", "kotlin", "python", "c++", "javascript", "typescript", "node.js")),
         ("database", ("postgresql", "mysql")),
         ("build_tool", ("gradle", "maven")),
+        ("test_automation_tool", ("pytest", "junit", "selenium", "playwright", "cypress", "jest")),
+        ("cloud_platform", ("aws", "azure", "gcp")),
+        ("scripting_language", ("python", "bash")),
     )
     groups = []
     grouped_line_names = set()
