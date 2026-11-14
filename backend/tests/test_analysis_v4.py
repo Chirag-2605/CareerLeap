@@ -358,3 +358,31 @@ def test_single_v4_pipeline_feeds_post_analysis_suggestion_design():
     assert plan["version"] == "suggestion-design-v1"
     assert any(item["category"] == "job_match" for item in plan["items"])
     assert all("verif" in item["safety_note"].lower() for item in plan["items"])
+
+
+
+def test_one_of_programming_languages_is_counted_as_one_required_group():
+    result = analyze_job_match_v4(
+        strong_resume(),
+        "Software Engineer\nRequired Qualifications:\n"
+        "- Strong proficiency in at least one of Java, Python, C++, JavaScript, or TypeScript.\n"
+        "Responsibilities:\n- Build and maintain reliable software services.",
+    )
+    assert result["assessment_coverage"]["required_skills"] == 1
+    assert "programming_language" in result["matched_required_skills"]
+
+
+def test_sdet_tooling_is_recognized_as_job_and_resume_skill_evidence():
+    resume = parse_lines([
+        "Alex Doe", "Skills", "Python, Playwright, pytest, SQL",
+        "Experience", "QA Automation Intern",
+        "• Built API regression tests using Python, Playwright, and pytest.",
+        "Education", "Example University",
+    ])
+    result = analyze_job_match_v4(
+        resume,
+        "SDET\nRequired Qualifications:\n- Python\n- Playwright\n- pytest\n"
+        "Responsibilities:\n- Build and maintain API regression tests.",
+    )
+    assert "playwright" in result["matched_required_skills"]
+    assert "pytest" in result["matched_required_skills"]
