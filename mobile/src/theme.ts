@@ -11,13 +11,15 @@ export const LIGHT_THEME = {
 };
 
 export const DARK_THEME = {
-  ink: "#EEF2FA", muted: "#A0AEC0", soft: "#0B1220", line: "#29364A",
-  white: "#131D2D", navy: "#4568E8", blue: "#91A9FF", blueSoft: "#202E4B",
-  green: "#55C99A", red: "#FF8585", amber: "#F2C46D",
-  input: "#0F1928", panel: "#172438", body: "#CDD6E4",
-  placeholder: "#8291A8", track: "#2A3850",
-  tagText: "#D7E2FF", warningSoft: "#342B1D",
-  dangerTagText: "#FFB4AE", dangerTagBg: "#45262B",
-  successTagText: "#8DE2BB", successTagBg: "#17392F",
-  warningTagText: "#F4D28A", warningTagBg: "#3A321F",
+  // Softer slate palette: reduce the near-black canvas and pure-white contrast
+  // while keeping the existing blue CareerLeap accent.
+  ink: "#E3E9F2", muted: "#AAB6C6", soft: "#182333", line: "#35445A",
+  white: "#202D40", navy: "#4568E8", blue: "#9AAFFF", blueSoft: "#2A3A57",
+  green: "#68CDA5", red: "#F28D8D", amber: "#E8C27A",
+  input: "#1B293B", panel: "#26364B", body: "#C0CAD8",
+  placeholder: "#98A6B9", track: "#3A4A60",
+  tagText: "#DCE5F5", warningSoft: "#3A3329",
+  dangerTagText: "#FFC0B9", dangerTagBg: "#493139",
+  successTagText: "#A0E6C6", successTagBg: "#244338",
+  warningTagText: "#F1D69A", warningTagBg: "#453B2A",
 };
