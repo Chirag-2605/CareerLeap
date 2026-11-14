@@ -6,7 +6,7 @@ VERSION = "quality-v3"
 MATCH_VERSION = "match-v3"
 
 SECTION_ALIASES = {
-    "summary": ["summary", "professional summary", "profile", "objective", "career objective"],
+    "summary": ["summary", "professional summary", "profile", "professional profile", "career profile", "objective", "career objective", "about me"],
     "experience": ["experience", "work experience", "professional experience", "employment", "internship"],
     "education": ["education", "academic background", "qualifications"],
     "skills": ["skills", "my skills", "technical skills", "key skills", "core competencies", "competencies", "skill set"],
