@@ -40,6 +40,7 @@ def _norm(text: str) -> str:
     text = text.lower().replace("&", " and ")
     text = re.sub(r"[^a-z0-9+#. ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\bapis\b", "api", text)
     for old, new in SYNONYMS.items():
         text = re.sub(rf"\b{re.escape(old)}\b", new, text)
     return text
