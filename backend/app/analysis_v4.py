@@ -527,9 +527,11 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
                     "source_sentence": text, "line_index": index,
                 }
 
-    # Collapse only explicit "A or B" alternatives from the same JD line.
+    # Collapse explicit OR lists into one requirement. Without this, a phrase
+    # such as "one of Java, Python, C++, JavaScript, or TypeScript" incorrectly
+    # counts every language as a separate mandatory skill.
     alternative_patterns = (
-        ("programming_language", ("java", "kotlin")),
+        ("programming_language", ("java", "kotlin", "python", "c++", "javascript", "typescript")),
         ("database", ("postgresql", "mysql")),
         ("build_tool", ("gradle", "maven")),
     )
@@ -538,9 +540,8 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
     for line_index, line in enumerate(lines):
         lowered = _norm(line["text"])
         for group_name, alternatives in alternative_patterns:
-            left, right = alternatives
-            pattern = r"\b" + re.escape(left) + r"\b\s+or\s+\b" + re.escape(right) + r"\b"
-            if not re.search(pattern, lowered):
+            present = [term for term in alternatives if _has(lowered, term)]
+            if len(present) < 2 or not re.search(r"\\b(?:or|either|one of)\\b", lowered):
                 continue
             classification = line["classification"]
             if classification not in ("required", "preferred"):
@@ -551,11 +552,10 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
             if classification in ("required", "preferred"):
                 groups.append({
                     "name": group_name, "classification": classification,
-                    "alternatives": list(alternatives), "match_rule": "any",
+                    "alternatives": present, "match_rule": "any",
                     "source_sentence": line["text"], "line_index": line_index,
                 })
-                grouped_line_names.add((line_index, left))
-                grouped_line_names.add((line_index, right))
+                grouped_line_names.update((line_index, term) for term in present)
     individual = [
         value for key, value in found.items()
         if (value["line_index"], key) not in grouped_line_names
