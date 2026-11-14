@@ -669,7 +669,7 @@ def analyze_job_match_v4(resume: Dict[str, Any], job_description: str) -> Dict[s
     skill_gaps = []
     aliases_by_name = _skill_aliases()
     evidence_corpus = collect_evidence(
-        resume, sections=("experience", "projects", "leadership", "volunteer", "skills")
+        resume, sections=("experience", "projects", "leadership", "volunteer")
     )
     for requirement in required + preferred:
         detail = match_requirement(requirement, skills, evidence_corpus, aliases_by_name)
