@@ -479,38 +479,60 @@ function ReportView({report,fileName,onBack,styles,C}: any) {
       {j.missing_skills?.length > 0 && <><Text style={styles.subhead}>Not detected in your resume</Text><View style={styles.skillWrap}>{j.missing_skills.map((s:string)=><Text key={s} style={styles.missingSkill}>{s}</Text>)}</View></>}
       {j.matched_skills?.length > 0 && <><Text style={styles.subhead}>Evidence detected</Text><View style={styles.skillWrap}>{j.matched_skills.map((s:string)=><Text key={s} style={styles.matchedSkill}>{s}</Text>)}</View></>}
     </Card>}
-    {j?.actionable_suggestions?.length > 0 && <Card styles={styles}>
-      <Text style={styles.cardTitle}>How to improve for this role</Text>
-      <Text style={styles.bodySmall}>Specific edits based on gaps between the job description and your resume. Add a skill only if you can support it with real experience.</Text>
-      {j.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
-        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
-        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+    {q.suggestion_design?.items?.length > 0 ? <Card styles={styles}>
+      <Text style={styles.cardTitle}>Your improvement plan</Text>
+      <Text style={styles.bodySmall}>Prioritized edits designed after the resume and job-match analysis. Start with the highest-impact evidence gaps; optional polish comes last.</Text>
+      {q.suggestion_design.items.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+        <View style={styles.rowBetween}>
+          <Text style={styles.findingTitle}>{item.title}</Text>
+          <Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : item.priority === "low" ? "OPTIONAL" : "REVIEW"}</Text>
+        </View>
+        <Text style={styles.actionLabel}>{String(item.category || "suggestion").replace(/_/g," ").toUpperCase()} · WHY IT MATTERS</Text>
+        <Text style={styles.recommendation}>{item.why_it_matters}</Text>
         <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
-        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>CURRENT RESUME LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
-        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
-        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        {item.source_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>SOURCE · EXTRACTED LINE {item.source_line.line}</Text><Text style={styles.sourceLineText}>{item.source_line.text}</Text></View> : null}
+        {item.questions_to_answer?.length > 0 ? <>
+          <Text style={styles.actionLabel}>DETAILS TO ADD</Text>
+          {item.questions_to_answer.map((question:string,index:number)=><Text key={index} style={styles.recommendation}>• {question}</Text>)}
+        </> : null}
+        {item.rewrite_template ? <><Text style={styles.actionLabel}>SAFE REWRITE STRUCTURE</Text><Text style={styles.rewriteText}>{item.rewrite_template}</Text></> : null}
+        {item.impact_guidance ? <><Text style={styles.actionLabel}>IMPACT GUIDANCE</Text><Text style={styles.wordingGuide}>{item.impact_guidance}</Text></> : null}
+        <Text style={styles.wordingGuide}>{item.safety_note}</Text>
       </View>)}
-    </Card>}
-    {q.actionable_suggestions?.length > 0 && <Card styles={styles}>
-      <Text style={styles.cardTitle}>Specific resume edits</Text>
-      <Text style={styles.bodySmall}>Each suggestion points to a place in the extracted resume and gives you a safe structure to improve it.</Text>
-      {q.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
-        <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "low" ? "OPTIONAL" : item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
-        <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
-        <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
-        {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
-        <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
-        {item.suggested_rewrite ? <><Text style={styles.actionLabel}>SUGGESTED REWRITE</Text><Text style={styles.rewriteText}>{item.suggested_rewrite}</Text></> : null}
-        <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
-      </View>)}
-    </Card>}
+    </Card> : <>
+      {j?.actionable_suggestions?.length > 0 && <Card styles={styles}>
+        <Text style={styles.cardTitle}>How to improve for this role</Text>
+        <Text style={styles.bodySmall}>Specific edits based on gaps between the job description and your resume. Add a skill only if you can support it with real experience.</Text>
+        {j.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+          <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+          <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+          <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+          {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>CURRENT RESUME LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+          <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+          <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        </View>)}
+      </Card>}
+      {q.actionable_suggestions?.length > 0 && <Card styles={styles}>
+        <Text style={styles.cardTitle}>Specific resume edits</Text>
+        <Text style={styles.bodySmall}>Each suggestion points to a place in the extracted resume and gives you a safe structure to improve it.</Text>
+        {q.actionable_suggestions.map((item:any)=><View key={item.code} style={styles.actionSuggestion}>
+          <View style={styles.rowBetween}><Text style={styles.findingTitle}>{item.title}</Text><Text style={[styles.priorityTag, item.priority === "low" ? styles.priorityMedium : item.priority === "high" ? styles.priorityHigh : styles.priorityMedium]}>{item.priority === "low" ? "OPTIONAL" : item.priority === "high" ? "HIGH PRIORITY" : "REVIEW"}</Text></View>
+          <Text style={styles.actionLabel}>WHAT'S MISSING</Text><Text style={styles.recommendation}>{item.what_is_missing}</Text>
+          <Text style={styles.actionLabel}>WHERE TO EDIT · {item.where_to_edit}</Text>
+          {item.target_line ? <View style={styles.sourceLine}><Text style={styles.sourceLineLabel}>REFERENCE · EXTRACTED LINE {item.target_line.line}</Text><Text style={styles.sourceLineText}>{item.target_line.text}</Text></View> : null}
+          <Text style={styles.actionLabel}>SUGGESTED CHANGE</Text><Text style={styles.recommendation}>{item.suggested_change}</Text>
+          {item.suggested_rewrite ? <><Text style={styles.actionLabel}>SUGGESTED REWRITE</Text><Text style={styles.rewriteText}>{item.suggested_rewrite}</Text></> : null}
+          <Text style={styles.actionLabel}>WORDING GUIDE</Text><Text style={styles.wordingGuide}>{item.safe_wording}</Text>
+        </View>)}
+      </Card>}
+    </>}
     <Card styles={styles}><Text style={styles.cardTitle}>Areas to strengthen</Text>
       {q.findings.length === 0 && <Text style={styles.bodySmall}>No major deductions were identified by this rubric.</Text>}
       {q.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}
     </Card>
     {j?.findings?.length > 0 && <Card styles={styles}><Text style={styles.cardTitle}>Job match recommendations</Text>{j.findings.map((f:any)=><Finding key={f.code} finding={f} styles={styles} C={C}/>)}</Card>}
     <Card styles={styles}><Text style={styles.cardTitle}>Recommended next steps</Text>{q.top_suggestions.map((s:string,i:number)=><View key={i} style={styles.suggestion}><Text style={styles.suggestionNum}>{i+1}</Text><Text style={styles.suggestionText}>{s}</Text></View>)}</Card>
-    <Text style={styles.privacy}>This score is an explainable estimate based on our V1 rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
+    <Text style={styles.privacy}>This score is an explainable estimate from CareerLeap's deterministic rubric, not a guarantee of how a particular employer's ATS will rank your resume. This scan is not saved.</Text>
     <Button styles={styles} C={C} title="Analyze another resume" onPress={onBack}/>
   </View>;
 }
