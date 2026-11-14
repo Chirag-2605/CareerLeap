@@ -9,12 +9,15 @@ from .config import settings
 from .parser_v2 import parse_resume_v2
 from .analysis_v4 import analyze_quality_v4, analyze_job_match_v4
 from .suggestion_design import design_suggestions
+from .credits import router as credits_router
 
 app = FastAPI(
     title="Resume Analyzer API",
     version="1.1.0",
     description="Single evidence-based V4 resume analyzer with post-analysis suggestions. Resume content is not persisted."
 )
+
+app.include_router(credits_router)
 
 origins = [x.strip() for x in settings.cors_origins.split(",") if x.strip()]
 app.add_middleware(
