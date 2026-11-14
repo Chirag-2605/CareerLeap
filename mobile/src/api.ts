@@ -116,10 +116,10 @@ export async function verifyGooglePlayCreditPurchase(
   const token = await currentUser.getIdToken(true);
   let response: Response;
   try {
-    response = await fetch(\`\${API_URL}/api/v1/credits/google-play/verify\`, {
+    response = await fetch(`${API_URL}/api/v1/credits/google-play/verify`, {
       method: "POST",
       headers: {
-        Authorization: \`Bearer \${token}\`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
