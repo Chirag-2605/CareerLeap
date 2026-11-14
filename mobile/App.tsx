@@ -9,7 +9,7 @@ import {
   signInWithEmailAndPassword, signOut, User
 } from "firebase/auth";
 import { auth, firebaseConfigured } from "./src/firebase";
-import { analyzeResume } from "./src/api";
+import { analyzeResume, getCreditBalance } from "./src/api";
 import { DARK_THEME, LIGHT_THEME } from "./src/theme";
 
 
@@ -283,6 +283,9 @@ export default function App() {
   const [showRoleOptions, setShowRoleOptions] = useState(false);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<Report|null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [creditsLoading, setCreditsLoading] = useState(false);
+  const [creditsError, setCreditsError] = useState(false);
   const [fileName, setFileName] = useState("");
   const [selectedAsset, setSelectedAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [showScanner, setShowScanner] = useState(false);
@@ -451,6 +454,33 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    if (!user) {
+      setCredits(null);
+      setCreditsError(false);
+      setCreditsLoading(false);
+      return () => { active = false; };
+    }
+    setCreditsLoading(true);
+    setCreditsError(false);
+    getCreditBalance()
+      .then((result) => { if (active) setCredits(result.available); })
+      .catch(() => { if (active) setCreditsError(true); })
+      .finally(() => { if (active) setCreditsLoading(false); });
+    return () => { active = false; };
+  }, [user]);
+
+  const refreshCredits = async () => {
+    try {
+      const result = await getCreditBalance();
+      setCredits(result.available);
+      setCreditsError(false);
+    } catch {
+      setCreditsError(true);
+    }
+  };
+
   const pickResume = async () => {
     if (!user) return showToast("Please sign in before scanning.", "error");
     try {
@@ -484,6 +514,7 @@ export default function App() {
         selectedAsset.file || null
       );
       setReport(result);
+      await refreshCredits();
       setShowScanner(false);
     } catch (e: any) {
       showToast(e?.message || "Resume analysis couldn't be completed. Please try again.", "error");
@@ -566,6 +597,17 @@ export default function App() {
           <View style={styles.heroAccent}><View style={styles.heroAccentDot}/><Text style={styles.heroAccentText}>YOUR NEXT OPPORTUNITY</Text></View>
           <Text style={styles.heroTitle}>Make every application count.</Text>
           <Text style={styles.body}>Understand your resume quality and see how closely your experience aligns with the role you're targeting.</Text>
+        </View>
+        <View style={styles.creditBanner}>
+          <View style={{flex:1}}>
+            <Text style={styles.creditTitle}>Your scan credits</Text>
+            <Text style={styles.creditSubtitle}>
+              {creditsLoading ? "Checking your balance…" : creditsError ? "Balance temporarily unavailable" : `${credits ?? 0} scans remaining`}
+            </Text>
+          </View>
+          <View style={styles.creditPill}>
+            <Text style={styles.creditPillText}>{creditsLoading ? "…" : creditsError ? "—" : String(credits ?? 0)}</Text>
+          </View>
         </View>
         <Card styles={styles}>
           <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>Resume analysis</Text><Text style={styles.bodySmall}>A focused review, built around evidence.</Text></View><Text style={styles.newTag}>BETA</Text></View>
@@ -759,6 +801,11 @@ function createStyles(C: any) { return StyleSheet.create({
   heroPills:{flexDirection:"row",flexWrap:"wrap",gap:7,marginTop:17},
   pill:{fontSize:10,color:C.tagText,backgroundColor:C.blueSoft,paddingHorizontal:10,paddingVertical:7,borderRadius:20,fontWeight:"700"},
   card:{backgroundColor:C.white,borderRadius:20,padding:19,marginBottom:16,borderWidth:1,borderColor:C.line,elevation:2,shadowColor:"#172B4D",shadowOpacity:.045,shadowRadius:12,shadowOffset:{width:0,height:4}},
+  creditBanner:{backgroundColor:C.blueSoft,borderWidth:1,borderColor:C.line,borderRadius:15,paddingHorizontal:16,paddingVertical:13,marginBottom:14,flexDirection:"row",alignItems:"center"},
+  creditTitle:{fontSize:12,fontWeight:"800",color:C.ink},
+  creditSubtitle:{fontSize:11,color:C.muted,marginTop:4},
+  creditPill:{minWidth:42,height:42,borderRadius:13,backgroundColor:C.white,alignItems:"center",justifyContent:"center",paddingHorizontal:8},
+  creditPillText:{fontSize:17,fontWeight:"900",color:C.blue},
   cardTitle:{fontSize:18,fontWeight:"800",color:C.ink,letterSpacing:-.35},
   button:{backgroundColor:C.navy,paddingVertical:15,paddingHorizontal:18,borderRadius:13,alignItems:"center",marginTop:15,elevation:2,shadowColor:C.navy,shadowOpacity:.13,shadowRadius:5,shadowOffset:{width:0,height:3}},
   buttonPressed:{opacity:.86,transform:[{scale:.99}]},buttonSecondary:{backgroundColor:"#EEF1F6",elevation:0,shadowOpacity:0},buttonText:{fontSize:14,fontWeight:"800",color:C.white,letterSpacing:.1},
