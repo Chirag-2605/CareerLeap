@@ -544,7 +544,7 @@ def _extract_jd_skills(job_description: str) -> List[Dict[str, Any]]:
         lowered = _norm(line["text"])
         for group_name, alternatives in alternative_patterns:
             present = [term for term in alternatives if _has(lowered, term)]
-            if len(present) < 2 or not re.search(r"\\b(?:or|either|one of)\\b", lowered):
+            if len(present) < 2 or not re.search(r"\b(?:or|either|one of)\b", lowered):
                 continue
             classification = line["classification"]
             if classification not in ("required", "preferred"):
