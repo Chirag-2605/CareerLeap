@@ -106,10 +106,10 @@ jobs:
           if "signingConfigs {" not in text:
               raise SystemExit("Could not find signingConfigs block in generated Gradle file.")
           text = text.replace("signingConfigs {", "signingConfigs {\n" + release_config, 1)
-          match = re.search(r"(buildTypes\\s*\\{[\\s\\S]*?\\brelease\\s*\\{)([\\s\\S]*?)(\\n\\s*\\})", text)
+          match = re.search(r"(buildTypes\s*\{[\s\S]*?\brelease\s*\{)([\s\S]*?)(\n\s*\})", text)
           if not match:
               raise SystemExit("Could not find release buildType block in generated Gradle file.")
-          body = re.sub(r"signingConfig\\s+signingConfigs\\.debug", "signingConfig signingConfigs.release", match.group(2))
+          body = re.sub(r"signingConfig\s+signingConfigs\.debug", "signingConfig signingConfigs.release", match.group(2))
           if "signingConfigs.release" not in body:
               body += "\n            signingConfig signingConfigs.release\n"
           text = text[:match.start(2)] + body + text[match.end(2):]
