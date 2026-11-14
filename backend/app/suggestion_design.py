@@ -23,6 +23,7 @@ SECTION_ALIASES = {
     "certifications": {"certifications", "certificates", "licenses"},
     "leadership": {"leadership", "leadership experience", "positions of responsibility"},
     "volunteer": {"volunteer experience", "volunteering", "community involvement"},
+    "coding_platforms": {"coding platforms", "competitive programming", "problem solving profiles"},
 }
 BULLET_RE = re.compile(r"^\s*(?:[•●▪◦‣∙·*-]|\d+[.)])\s+")
 VAGUE_STARTS = {"worked", "helped", "assisted", "involved", "responsible", "participated", "did", "learned", "attended"}
@@ -236,12 +237,21 @@ def design_suggestions(
     experience_project_text = " ".join(
         item["text"] for item in lines if item["section"] in {"experience", "projects"}
     )
+    coding_platform_text = " ".join(
+        item["text"] for item in lines if item["section"] == "coding_platforms"
+    )
     listed_only = []
     for skill in SKILL_TERMS:
+        has_project_or_experience_evidence = re.search(
+            r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])", experience_project_text.lower()
+        )
+        # Competitive-programming profiles are supporting evidence for DSA, even
+        # though they are not a substitute for a concrete engineering example.
+        has_dsa_support = skill == "data structures and algorithms" and bool(re.search(
+            r"leetcode|geeksforgeeks|codeforces|codechef|coding ninjas", coding_platform_text, re.I
+        ))
         if any(re.search(r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])", item["text"].lower())
-               for item in skills_lines) and not re.search(
-                   r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])", experience_project_text.lower()
-               ):
+               for item in skills_lines) and not has_project_or_experience_evidence and not has_dsa_support:
             listed_only.append(skill)
     if listed_only:
         items.append(_suggestion(
