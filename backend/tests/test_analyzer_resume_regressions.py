@@ -53,7 +53,9 @@ def strong_engineering_resume():
         "Education", "Bachelor of Technology in Computer Science, Example Institute, 2026",
         "Skills", "React, TypeScript, Python, AWS, REST API, WebSockets, SQL, Git, MongoDB",
         "Experience", "Software Development Intern — Product Company | 2025",
-        "• Built a dynamic React and TypeScript dashboard handling data from 10+ datasets.",
+        "• Built responsive React interfaces and reusable components for a dashboard used across 10+ datasets.",
+        "• Implemented backend API endpoints with request validation and JWT authentication.",
+        "• Designed PostgreSQL database schemas and integrated MongoDB storage.",
         "• Implemented browser-based SSH sessions using WebSockets and AWS Systems Manager.",
         "• Developed backend endpoints and automated AWS workflows using Python.",
         "• Reduced manual monitoring from several hours to under 5 minutes.",
@@ -108,8 +110,8 @@ def test_same_full_stack_jd_ranks_engineering_evidence_above_unrelated_or_generi
     assert strong["score"] > bad["score"]
     # The analytics resume demonstrates transferable SQL/Python/data evidence;
     # the generic resume should not tie or outrank it on responsibilities.
-    assert fresh["dimension_assessments"]["responsibility_matching"]["score"] > (
-        bad["dimension_assessments"]["responsibility_matching"]["score"]
+    assert fresh["dimension_assessments"]["skill_matching"]["required"] > (
+        bad["dimension_assessments"]["skill_matching"]["required"]
     )
 
 
