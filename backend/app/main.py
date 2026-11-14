@@ -58,9 +58,18 @@ async def analyze(
             else None
         )
 
-        # Reuse the parser's ordered evidence lines for suggestion design. No
-        # second parser or second scoring engine is involved.
-        # Rebuild a section-aware text view from normalized parser output. The raw\n        # evidence list intentionally has no section headings; feeding it directly\n        # to suggestion design caused every line to look like header content.\n        suggestion_lines = []\n        for section in parsed.get("sections", []):\n            heading = section.get("heading") or section.get("type") or "Other"\n            suggestion_lines.append(str(heading))\n            for item in section.get("items", []):\n                text = str(item.get("text", "")).strip()\n                if text:\n                    suggestion_lines.append(("• " if item.get("kind") == "bullet" else "") + text)\n        resume_text = "\\n".join(suggestion_lines)
+        # Rebuild a section-aware text view from normalized parser output.
+        # The raw evidence list has no section headings; feeding it directly
+        # to suggestion design caused every line to look like header content.
+        suggestion_lines = []
+        for section in parsed.get("sections", []):
+            heading = section.get("heading") or section.get("type") or "Other"
+            suggestion_lines.append(str(heading))
+            for item in section.get("items", []):
+                text = str(item.get("text", "")).strip()
+                if text:
+                    suggestion_lines.append(("• " if item.get("kind") == "bullet" else "") + text)
+        resume_text = "\n".join(suggestion_lines)
         suggestion_plan = design_suggestions(resume_text, quality, job_match)
         quality["suggestion_design"] = suggestion_plan
         quality["top_suggestions"] = [item["title"] for item in suggestion_plan["items"][:5]]
