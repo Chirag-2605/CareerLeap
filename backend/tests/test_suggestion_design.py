@@ -46,6 +46,7 @@ def test_suggestions_include_source_lines_questions_and_safe_rewrite_templates()
     assert experience["source_line"]["line"] == 12
     assert experience["questions_to_answer"]
     assert "[technology or method]" in experience["rewrite_template"]
+    assert len(experience["related_source_lines"]) >= 1
     assert "[verified outcome or scope]" in experience["rewrite_template"]
     assert "20%" not in experience["rewrite_template"]
     assert "verify" in experience["safety_note"].lower()
@@ -106,8 +107,10 @@ def test_job_match_gaps_become_contextual_prompts_not_keyword_stuffing():
 
     assert len(job_items) == 2
     assert any("genuinely used" in item["why_it_matters"] for item in job_items)
-    assert next(item for item in job_items if "kotlin" in item["code"])["priority"] == "high"
-    assert next(item for item in job_items if "docker" in item["code"])["priority"] == "medium"
+    assert next(item for item in job_items if item["code"] == "job_skill_evidence_required")["priority"] == "high"
+    assert next(item for item in job_items if item["code"] == "job_skill_evidence_preferred")["priority"] == "medium"
+    assert "kotlin" in next(item for item in job_items if item["code"] == "job_skill_evidence_required")["why_it_matters"]
+    assert "docker" in next(item for item in job_items if item["code"] == "job_skill_evidence_preferred")["why_it_matters"]
     assert all(item["questions_to_answer"] for item in job_items)
     assert all("keyword list" not in item["rewrite_template"].lower() for item in job_items if item["rewrite_template"])
 
