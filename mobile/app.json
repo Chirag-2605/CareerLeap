@@ -10,7 +10,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-      "versionCode": 2,
+      "versionCode": 3,
       "package": "com.chiragagrawal.careerleap",
       "adaptiveIcon": {
         "backgroundColor": "#F7F8FA"
