@@ -501,7 +501,7 @@ export default function App() {
   const requestMoreCredits = async () => {
     const subject = "CareerLeap - Request for more scan credits";
     const body = [
-      "Hi Chirag,",
+      "Hi CareerLeap team,",
       "",
       "I've used all my free CareerLeap resume scans and would like to request additional credits.",
       "",
@@ -511,11 +511,11 @@ export default function App() {
       "",
       "Thanks!",
     ].join("\n");
-    const mailto = `mailto:chirag240504@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailto = `mailto:careerleap0@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
       await Linking.openURL(mailto);
     } catch {
-      showToast("Couldn't open your email app. Please email chirag240504@gmail.com to request more credits.", "error");
+      showToast("Couldn't open your email app. Please email careerleap0@gmail.com to request more credits.", "error");
     }
   };
 
@@ -635,7 +635,6 @@ export default function App() {
             <Text style={styles.creditRequestTitle}>Out of scan credits?</Text>
             <Text style={styles.creditRequestText}>Email us and we'll help you add more credits while CareerLeap is in its early-access phase.</Text>
             <Button styles={styles} C={C} title="Request more credits" onPress={requestMoreCredits}/>
-            <Text style={styles.creditRequestEmail}>chirag240504@gmail.com</Text>
           </View>
         ) : null}
         <Card styles={styles}>
