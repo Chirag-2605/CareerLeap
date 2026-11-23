@@ -14,6 +14,7 @@ import { DARK_THEME, LIGHT_THEME } from "./src/theme";
 
 
 // Firebase refresh tokens can keep a user signed in indefinitely. Enforce a fixed 24-hour session lifetime using the original authentication timestamp.
+const PRIVACY_POLICY_URL = "https://chirag-2605.github.io/CareerLeap/privacy-policy/";
 const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RULE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s]).{8,}$/;
 const EMAIL_LOCAL_RE = /^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/i;
@@ -572,6 +573,7 @@ export default function App() {
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>C</Text></View>
       <View style={{flex:1}}><Text style={styles.brand}>CareerLeap</Text><Text style={styles.brandSub}>CAREER COMPANION</Text></View>
       <Pressable onPress={() => setDarkMode((v) => !v)} style={styles.themeToggle} accessibilityRole="button" accessibilityLabel={darkMode ? "Switch to light mode" : "Switch to dark mode"}><Text style={styles.themeToggleText}>{darkMode ? "☀ Light" : "☾ Dark"}</Text></Pressable>
+      <Pressable onPress={() => { void Linking.openURL(PRIVACY_POLICY_URL); }} hitSlop={10} accessibilityRole="link" accessibilityLabel="Read CareerLeap Privacy Policy"><Text style={styles.link}>Privacy</Text></Pressable>
       {user ? <Pressable hitSlop={12} onPress={() => { void signOut(auth!).then(() => { reset(); showToast("Signed out.", "success"); }).catch(() => showToast("Couldn't sign out. Please try again.", "error")); }}><Text style={styles.link}>Sign out</Text></Pressable> : null}
     </View>
     {toast && <View pointerEvents="none" style={[styles.toast, toast.tone === "error" ? styles.toastError : toast.tone === "success" ? styles.toastSuccess : styles.toastInfo]}>
