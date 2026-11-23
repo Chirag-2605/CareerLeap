@@ -10,14 +10,15 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-      "versionCode": 3,
+      "versionCode": 4,
       "package": "com.chiragagrawal.careerleap",
       "adaptiveIcon": {
         "backgroundColor": "#F7F8FA"
       }
     },
     "plugins": [
-      "expo-document-picker"
+      "expo-document-picker",
+      "./plugins/withOptionalPortraitFeature"
     ]
   }
 }
